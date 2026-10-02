@@ -22,6 +22,8 @@
           "options": {
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
+            "webWorkerTsConfig": "tsconfig.worker.json",
+            "externalDependencies": ["node:module", "node:worker_threads"],
             "inlineStyleLanguage": "scss",
             "assets": [
               {

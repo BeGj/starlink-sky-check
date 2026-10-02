@@ -1,45 +1,10 @@
 <header class="topbar">
-  <h1>Starlink sky check <span>Norway</span></h1>
-  <app-address-search class="search" />
+  <a routerLink="/" class="brand">Starlink sky check <span>Norway</span></a>
+  <nav aria-label="Main">
+    <a routerLink="/sky-check" routerLinkActive="active" ariaCurrentWhenActive="page">Sky check</a>
+    <a routerLink="/satellites" routerLinkActive="active" ariaCurrentWhenActive="page">Live satellites</a>
+  </nav>
 </header>
-<main class="layout">
-  <app-map-view class="map" />
-  <aside
-    #panel
-    class="panel"
-    [class.open]="sheetOpen()"
-    [class.sized]="sheetHeight() !== null"
-    [class.dragging]="dragging()"
-    [style.--sheet-height.px]="sheetHeight()"
-    aria-label="Spots and results"
-  >
-    <button
-      type="button"
-      class="handle"
-      (click)="toggleSheet()"
-      (pointerdown)="onHandlePointerDown($event)"
-      (pointermove)="onHandlePointerMove($event)"
-      (pointerup)="onHandlePointerUp($event)"
-      (pointercancel)="onHandlePointerUp($event)"
-      (keydown)="onHandleKeydown($event)"
-      [attr.aria-expanded]="sheetOpen()"
-      aria-controls="panel-body"
-    >
-      <span class="grip" aria-hidden="true"></span>
-      <span class="visually-hidden">
-        {{ sheetOpen() ? 'Collapse panel' : 'Expand panel' }}. Drag, or use the up and down arrow keys, to resize.
-      </span>
-    </button>
-    <div id="panel-body" class="panel-body">
-      <app-spot-list />
-      <app-spot-panel />
-      <footer>
-        <p>
-          Elevation data and map © <a href="https://www.kartverket.no/" target="_blank" rel="noopener">Kartverket</a> (CC BY 4.0).
-          Trees are shown as they were when the area was laser-scanned and may have grown or been cut since.
-        </p>
-        <p>This is an estimate. Confirm with the obstruction check in the Starlink app before mounting.</p>
-      </footer>
-    </div>
-  </aside>
+<main>
+  <router-outlet />
 </main>

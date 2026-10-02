@@ -1,6 +1,11 @@
 # Starlink Sky Check (Norway)
 
-A static web app that estimates how much of a Starlink dish's field of view would be blocked by hills, trees and buildings at any spot in Norway. It uses Kartverket's national laser elevation data. There is no backend: everything runs in the browser.
+A static web app with two tools for Starlink in Norway. There is no backend: everything runs in the browser.
+
+- **Sky check** (`/sky-check`) estimates how much of a Starlink dish's field of view would be blocked by hills, trees and buildings at any spot in Norway, using Kartverket's national laser elevation data.
+- **Live satellites** (`/satellites`) shows every Starlink satellite on a 2D map or 3D globe in real time, with rewind and fast-forward, and a sky view that looks up from a chosen spot with the terrain around it.
+
+The front page (`/`) introduces both. Sky-check links from before the front page existed (`/?s=…`) are redirected to `/sky-check`.
 
 **Try it: [starlink.schjem.net](https://starlink.schjem.net)**
 
@@ -42,6 +47,16 @@ The **3D** button in the map's top-left corner tilts the map and turns on terrai
 - **Data cost:** about 0.25 MB per elevation tile. A typical close-up view loads 20–30 tiles at standard detail. In HQ, a street-level view in Bergen loaded 33 tiles (about 9 MB), and panning loads more. The terrain and hillshade layers share each download, and at most 6 requests are sent to Kartverket at once.
 - **Shareable link:** the 3D state is saved in the URL as `3d=1`, or `3d=hq` for high detail.
 
+## Live satellites
+
+- **Orbits:** the app downloads the element sets for all Starlink satellites (about 11,000, 4.7 MB) from CelesTrak and propagates them with SGP4 ([satellite.js](https://github.com/shashwatak/satellite-js)) in a Web Worker, about twice a second.
+- **CelesTrak's limits:** CelesTrak updates the data every 2 hours and answers `403` to a connection that asks again before then. The download is kept in the browser's Cache API for 2 hours. After a refusal the app uses cached data and doesn't ask again for 2 hours. People sharing one internet connection (or who clear their cache) can still hit the limit; the page then says so.
+- **Time:** the slider moves up to 3 days back or ahead, with play/pause, 1×–600× speed and a "Back to now" button. Positions are extrapolated from the latest element sets, so they get less exact away from now: a few km per day, more for satellites that manoeuvre. Beyond a day, the page shows a warning.
+- **World map:** dots at the point on Earth beneath each satellite, coloured by orbital shell (43°, 53°, 70°, 97.6°), on OpenFreeMap tiles, as a globe or a flat map. Selecting a satellite shows its ground track for half an orbit either way.
+- **Observer:** pick a spot on the map, use your location, or use the selected sky-check spot (the sky check also links here). The panel counts satellites above the horizon and above the lowest satellite elevation, and the map shows the circle within which a satellite at 500 km is that high.
+- **Sky view:** a first-person MapLibre camera at the observer (`calculateCameraOptionsFromCameraLngLatAltRotation`, pitch up to 180°) with Kartverket terrain (trees and buildings) in Norway. Drag, the arrow keys or the mouse wheel look around and zoom. Satellites are drawn by a custom WebGL layer on a sphere 30 km around the observer, in their exact direction, so terrain closer than that hides them. Their true positions would land in the wrong part of the sky, because Web Mercator stretches distances differently for each satellite at these latitudes.
+- **Shareable links:** `view`, `obs` (lat, lon, height above ground), `min` (lowest elevation), `sel` (NORAD number) and, while paused, `t` (time).
+
 ## Limitations
 
 - **Trees** are as they were when the area was laser-scanned.
@@ -64,8 +79,10 @@ All are CORS-enabled and need no key:
 | Point height | `https://ws.geonorge.no/hoydedata/v1/punkt` |
 | Address search | `https://ws.geonorge.no/adresser/v1/sok` |
 | Basemap | `https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png` |
+| Starlink orbits (OMM JSON) | `https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json` |
+| World map (vector tiles) | `https://tiles.openfreemap.org/styles/positron` |
 
-Data © Kartverket, CC BY 4.0.
+Data © Kartverket, CC BY 4.0. Orbit data from CelesTrak. World map from OpenFreeMap, © OpenStreetMap contributors.
 
 ## Development
 
@@ -78,12 +95,16 @@ npm run build      # production build -> dist/starlink-simulator/browser
 
 The code is laid out as follows:
 
+- `src/app/pages/` holds the routed pages (front page, sky check, live satellites), each lazy-loaded.
 - `src/app/analysis/` holds the pure horizon and cone maths, with unit tests.
-- `src/app/core/` holds the Kartverket clients, projections and kit templates.
-- `src/app/state/` holds the signal store, the analysis orchestration and the URL codec.
-- `src/app/components/` holds the UI.
+- `src/app/core/` holds the Kartverket clients, projections, kit templates and the shared MapLibre setup (`map-setup.ts`).
+- `src/app/state/` holds the sky-check signal store, the analysis orchestration and the URL codec.
+- `src/app/satellites/` holds the live-satellites feature: the CelesTrak loader, the orbit maths and its Web Worker, the store, and the map, sky-view and time components.
+- `src/app/components/` holds the sky-check UI and the shared side panel / bottom sheet.
 
-MapLibre 6 loads its web worker as a separate module, so `angular.json` copies `maplibre-gl-worker.mjs` and `maplibre-gl-shared.mjs` to `/maplibre/`, and `map-view.ts` points `setWorkerUrl` at them.
+MapLibre 6 loads its web worker as a separate module, so `angular.json` copies `maplibre-gl-worker.mjs` and `maplibre-gl-shared.mjs` to `/maplibre/`, and `core/map-setup.ts` points `setWorkerUrl` at them.
+
+satellite.js 7 also ships an optional WASM build whose loader imports Node modules; it's never used here, so `angular.json` lists `node:module` and `node:worker_threads` as external dependencies to keep them out of the bundle. The orbit worker has its own `tsconfig.worker.json`.
 
 ## Deployment
 

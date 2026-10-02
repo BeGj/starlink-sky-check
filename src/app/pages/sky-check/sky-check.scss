@@ -1,0 +1,14 @@
+:host { display: grid; grid-template-rows: auto 1fr; min-height: 0; height: 100%; }
+.toolbar { padding: 0.5rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); z-index: 3; }
+.search { max-width: 440px; }
+.layout { position: relative; display: grid; grid-template-columns: 1fr 400px; min-height: 0; }
+.map { min-height: 0; }
+footer { font-size: 0.75rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: 0.75rem; }
+footer p { margin: 0 0 0.4rem; }
+footer a { color: inherit; }
+
+@media (max-width: 767px) {
+  .toolbar { padding: 0.5rem 16px; }
+  .search { max-width: none; }
+  .layout { grid-template-columns: 1fr; }
+}
