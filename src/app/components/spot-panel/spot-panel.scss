@@ -50,3 +50,4 @@ output { font-variant-numeric: tabular-nums; font-size: 0.9rem; }
 .rating.fair { background: #fffbeb; color: #78350f; }
 .rating.poor { background: #fef2f2; color: var(--danger); }
 .rating-source { display: block; font-size: 0.75rem; margin-top: 0.2rem; }
+.sat-link { display: inline-block; margin-top: 0.6rem; font-size: 0.85rem; color: var(--accent-text); font-weight: 600; }

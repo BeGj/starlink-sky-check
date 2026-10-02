@@ -1,0 +1,59 @@
+:host { display: block; height: 100%; }
+.layout { position: relative; display: grid; grid-template-columns: 1fr 380px; height: 100%; min-height: 0; }
+.stage { position: relative; min-height: 0; }
+.view { position: absolute; inset: 0; }
+.view-switch {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2;
+  display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 2px; box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
+}
+.view-switch button { font: inherit; font-size: 0.85rem; border: 0; background: none; color: var(--text); padding: 0.35rem 0.7rem; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.view-switch button:hover { background: var(--hover); }
+.view-switch button.on { background: var(--accent); color: #fff; font-weight: 600; }
+.loading-3d { position: absolute; inset: 0; margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: #0f172a; color: #fff; }
+.placing { position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); margin: 0; background: var(--surface); padding: 0.45rem 0.7rem; border-radius: 8px; font-size: 0.85rem; box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); z-index: 2; }
+
+h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
+section { display: grid; gap: 0.4rem; }
+p { margin: 0; }
+.status .count { font-size: 1rem; }
+.meta { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+.warn { color: var(--danger); font-size: 0.9rem; }
+.notice { font-size: 0.8rem; color: #78350f; background: #fffbeb; padding: 0.4rem 0.5rem; border-radius: 6px; }
+.loading { display: flex; align-items: center; gap: 0.5rem; }
+.spinner { width: 1rem; height: 1rem; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.where { font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.min-el { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.9rem; margin-top: 0.3rem; }
+.with-unit { display: flex; align-items: center; gap: 0.35rem; }
+input[type='number'] { font: inherit; width: 4.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; font-size: 0.85rem; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.sub { font-size: 0.85rem; margin: 0.4rem 0 0; }
+.overhead { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.overhead button {
+  width: 100%; display: flex; justify-content: space-between; gap: 0.5rem; font: inherit; font-size: 0.82rem;
+  background: none; border: 1px solid transparent; border-radius: 6px; padding: 0.25rem 0.4rem; color: var(--text); cursor: pointer; text-align: left;
+}
+.overhead button:hover { background: var(--hover); }
+.overhead button[aria-pressed='true'] { background: #fef2f2; border-color: #fecaca; color: #991b1b; font-weight: 600; }
+.sat-pos { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.row h2 { margin: 0; }
+.selected { border: 1px solid #fecaca; background: #fef2f2; padding: 0.6rem 0.7rem; border-radius: 8px; }
+.choices { display: grid; gap: 0.4rem; }
+.choices label { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start; font-size: 0.85rem; line-height: 1.35; cursor: pointer; }
+.choices input { margin-top: 0.2rem; accent-color: var(--accent); }
+.choices input:disabled + span { color: var(--muted); }
+.legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; font-size: 0.85rem; }
+.legend li { display: flex; align-items: center; gap: 0.45rem; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+footer { font-size: 0.75rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: 0.75rem; display: grid; gap: 0.4rem; }
+footer a { color: inherit; }
+
+@media (max-width: 767px) {
+  .layout { grid-template-columns: 1fr; }
+  .view-switch { top: 8px; }
+  .view-switch button { padding: 0.3rem 0.5rem; }
+}

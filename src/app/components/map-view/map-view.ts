@@ -1,13 +1,12 @@
 import { afterNextRender, Component, DestroyRef, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
-import { GeoJSONSource, LngLatBounds, Map as MlMap, Marker, NavigationControl, ScaleControl, setWorkerUrl } from 'maplibre-gl';
+import { GeoJSONSource, LngLatBounds, Map as MlMap, Marker, NavigationControl, ScaleControl } from 'maplibre-gl';
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson';
 import { runs } from '../../analysis/runs';
-import { DEM_TILE_SIZE, registerDemProtocol } from '../../core/dem-protocol';
 import { fromUtm33, toUtm33, trueNorthGridAzimuth } from '../../core/geo';
+import { BASEMAP, BASEMAP_ATTRIBUTION, demKey, demSource, initMapLibre, SKY, Surface, VARIANTS } from '../../core/map-setup';
 import { SpotsStore } from '../../state/spots.store';
 import { OVERLAY_MODES, OverlayMode, Spot } from '../../state/spot';
 
-const BASEMAP = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
 const COLORS = { blocked: '#dc2626', clear: '#16a34a', outside: '#94a3b8' };
 const AIM_LENGTH_M = 40;
 /** The direction ring keeps a constant on-screen size, so it is rebuilt as the map zooms. */
@@ -25,41 +24,8 @@ const TOGGLED_LAYERS = ['area-fill', 'area-outline', 'horizon', 'fan', 'blocked'
 
 type Props = Record<string, unknown>;
 
-// MapLibre 6 loads its worker as a separate module next to its own file, which the app bundle doesn't
-// contain; angular.json copies the worker (and the shared chunk it imports) to /maplibre/.
-setWorkerUrl(new URL('maplibre/maplibre-gl-worker.mjs', document.baseURI).href);
-registerDemProtocol();
+initMapLibre();
 
-type Surface = 'dom' | 'dtm';
-/**
- * Terrain detail levels. MapLibre draws terrain from DEM tiles one zoom below the view, with a mesh of
- * 128 cells per 256 px tile, so each mesh cell spans 2 DEM pixels. At 60°N:
- * - standard (DEM up to z15): ~4.8 m mesh, ~2.4 m hillshade;
- * - high (DEM up to z17): ~1.2 m mesh, about the 1 m resolution of Kartverket's laser data, at up to 16× the tiles.
- */
-const DEM_MAX_ZOOM = { standard: 15, high: 17 } as const;
-type Detail = keyof typeof DEM_MAX_ZOOM;
-const VARIANTS = (['dom', 'dtm'] as const).flatMap((surface) => (['standard', 'high'] as const).map((detail) => ({ surface, detail, key: demKey(surface, detail) })));
-
-function demKey(surface: Surface, detail: Detail): string {
-  return detail === 'high' ? `${surface}-hq` : surface;
-}
-
-/** Elevation sources for 3D: Kartverket laser data, only within Norway and only from z8 (3D is for local views). */
-function demSource(surface: Surface, detail: Detail) {
-  return {
-    type: 'raster-dem' as const,
-    // Same URLs for both detail levels, so tiles up to z15 are shared through the protocol's cache.
-    tiles: [`kvdem://${surface}/{z}/{x}/{y}`],
-    tileSize: DEM_TILE_SIZE,
-    encoding: 'terrarium' as const,
-    minzoom: 8,
-    maxzoom: DEM_MAX_ZOOM[detail],
-    bounds: [4, 57.8, 31.5, 71.5] as [number, number, number, number],
-    // No attribution here: the topo basemap already credits Kartverket, and repeating it duplicates the label.
-  };
-}
-const SKY = { 'sky-color': '#8fbbe8', 'horizon-color': '#e3eef8', 'fog-color': '#e3eef8', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.85 };
 const PITCH_3D = 60;
 /** 3D antenna model (m). The dish is drawn somewhat larger than a real one (~0.6 m) so it's visible from a distance. */
 const ANTENNA = { mastRadius: 0.25, dishRadius: 0.9, dishThickness: 0.3, minHeight: 0.6 };
@@ -86,7 +52,7 @@ export class MapView {
         style: {
           version: 8,
           sources: {
-            topo: { type: 'raster', tiles: [BASEMAP], tileSize: 256, maxzoom: 18, attribution: '© <a href="https://www.kartverket.no/">Kartverket</a>' },
+            topo: { type: 'raster', tiles: [BASEMAP], tileSize: 256, maxzoom: 18, attribution: BASEMAP_ATTRIBUTION },
             // MapLibre advises separate sources for terrain and hillshade; the DEM protocol shares their downloads.
             // A source's zoom range is fixed, so each detail level has its own pair.
             ...Object.fromEntries(

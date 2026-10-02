@@ -130,6 +130,7 @@
           <dt>Antenna height</dt>
           <dd>{{ v!.analysis!.antennaZ!.toFixed(1) }} m a.s.l.</dd>
         </dl>
+        <a class="sat-link" routerLink="/satellites" [queryParams]="satellitesQuery()">See Starlink satellites in the sky from this spot <span aria-hidden="true">→</span></a>
         @if (v!.analysis!.coverage; as c) {
           <section class="coverage" aria-labelledby="coverage-heading">
             <h3 id="coverage-heading">What this analysis includes</h3>

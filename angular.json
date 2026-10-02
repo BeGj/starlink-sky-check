@@ -22,11 +22,18 @@
           "options": {
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
+            "webWorkerTsConfig": "tsconfig.worker.json",
+            "externalDependencies": ["node:module", "node:worker_threads"],
             "inlineStyleLanguage": "scss",
             "assets": [
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "{Workers,Assets,ThirdParty,Widgets}/**/*",
+                "input": "node_modules/cesium/Build/Cesium",
+                "output": "cesium"
               },
               {
                 "glob": "maplibre-gl-worker.mjs",
@@ -47,7 +54,13 @@
               "proj4",
               "geotiff",
               "pako",
-              "lerc"
+              "lerc",
+              "bitmap-sdf",
+              "grapheme-splitter",
+              "mersenne-twister",
+              "nosleep.js",
+              "protobufjs/dist/minimal/protobuf.js",
+              "urijs"
             ]
           },
           "configurations": {

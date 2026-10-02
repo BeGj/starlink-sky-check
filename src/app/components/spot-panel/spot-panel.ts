@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { CUSTOM_KIT_ID, findKit, KITS } from '../../core/kits';
 import { isRoughlyInNorway } from '../../core/geo';
 import { SpotsStore } from '../../state/spots.store';
@@ -7,7 +8,7 @@ import { SkyPlot } from '../sky-plot/sky-plot';
 
 @Component({
   selector: 'app-spot-panel',
-  imports: [SkyPlot],
+  imports: [RouterLink, SkyPlot],
   templateUrl: './spot-panel.html',
   styleUrl: './spot-panel.scss',
 })
@@ -42,6 +43,12 @@ export class SpotPanel {
     if (p <= 5) return { level: 'good', label: 'Good', detail: 'Most use works fine; expect occasional short dropouts.' };
     if (p <= 10) return { level: 'fair', label: 'Some problems likely', detail: 'Expect buffering and dropped video calls now and then.' };
     return { level: 'poor', label: 'Serious problems likely', detail: 'Frequent dropouts; browsing and video calls will suffer.' };
+  });
+
+  /** Opens the live satellites page looking at the sky from this spot. */
+  protected readonly satellitesQuery = computed(() => {
+    const s = this.spot();
+    return s ? { obs: `${s.lat.toFixed(5)},${s.lon.toFixed(5)},${s.height}`, view: 'observer', min: s.minElevation === 25 ? null : s.minElevation } : null;
   });
 
   protected set(patch: Partial<SpotSettings>): void {

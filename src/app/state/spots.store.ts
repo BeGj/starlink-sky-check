@@ -64,32 +64,19 @@ export class SpotsStore {
     return out;
   });
 
-  constructor() {
-    const params = new URLSearchParams(location.search);
-    const restored = decodeSpots(params.get('s'));
-    for (const s of restored) this.add(s, false);
-    const mode = OVERLAY_MODES.find((m) => m.id === params.get('v'));
-    if (mode) this.overlayMode.set(mode.id);
-    const mode3d = params.get('3d');
-    this.view3d.set(mode3d === '1' || mode3d === 'hq');
-    this.view3dHigh.set(mode3d === 'hq');
-    const sel = Number(params.get('sel'));
+  /** The sky-check page's URL query (spots, selection, overlay, 3D), for shareable links. */
+  readonly query = computed(() => {
     const spots = this.spots();
-    if (spots.length) this.selectedId.set(spots[Number.isInteger(sel) && spots[sel] ? sel : 0].id);
-    for (const s of spots) void this.analysis.analyse(s.id, s);
+    const idx = spots.findIndex((s) => s.id === this.selectedId());
+    const q = new URLSearchParams();
+    if (spots.length) q.set('s', encodeSpots(spots));
+    if (idx > 0) q.set('sel', String(idx));
+    if (this.overlayMode() !== 'fan-ring') q.set('v', this.overlayMode());
+    if (this.view3d()) q.set('3d', this.view3dHigh() ? 'hq' : '1');
+    return q.toString();
+  });
 
-    effect(() => {
-      const spots = this.spots();
-      const idx = spots.findIndex((s) => s.id === this.selectedId());
-      const q = new URLSearchParams();
-      if (spots.length) q.set('s', encodeSpots(spots));
-      if (idx > 0) q.set('sel', String(idx));
-      if (this.overlayMode() !== 'fan-ring') q.set('v', this.overlayMode());
-      if (this.view3d()) q.set('3d', this.view3dHigh() ? 'hq' : '1');
-      const search = q.toString();
-      history.replaceState(null, '', search ? `?${search}` : location.pathname);
-    });
-
+  constructor() {
     // Once a spot has a result, re-run automatically when height or trees change at the same location,
     // or when the dish is re-aimed low enough that mountains beyond the fetched radius could matter.
     // Moving the spot leaves the result stale until the user asks again, since that means new downloads.
@@ -102,6 +89,23 @@ export class SpotsStore {
         if (v.stale || v.needsMoreReach) untracked(() => void this.analysis.analyse(s.id, s));
       }
     });
+  }
+
+  /** Replaces the state with what a sky-check URL query describes, and starts analysing the restored spots. */
+  applyQuery(params: URLSearchParams): void {
+    for (const s of this.spots()) this.analysis.forget(s.id);
+    this.spots.set([]);
+    this.selectedId.set(null);
+    for (const s of decodeSpots(params.get('s'))) this.add(s, false);
+    const mode = OVERLAY_MODES.find((m) => m.id === params.get('v'));
+    this.overlayMode.set(mode ? mode.id : 'fan-ring');
+    const mode3d = params.get('3d');
+    this.view3d.set(mode3d === '1' || mode3d === 'hq');
+    this.view3dHigh.set(mode3d === 'hq');
+    const sel = Number(params.get('sel'));
+    const spots = this.spots();
+    if (spots.length) this.selectedId.set(spots[Number.isInteger(sel) && spots[sel] ? sel : 0].id);
+    for (const s of spots) void this.analysis.analyse(s.id, s);
   }
 
   add(settings: Partial<SpotSettings> & Pick<SpotSettings, 'lat' | 'lon'>, select = true): Spot {
