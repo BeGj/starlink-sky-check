@@ -17,6 +17,7 @@
     "@angular/forms": "^22.0.0",
     "@angular/platform-browser": "^22.0.0",
     "@angular/router": "^22.0.0",
+    "cesium": "^1.146.0",
     "geotiff": "^3.0.5",
     "maplibre-gl": "^6.11.2",
     "proj4": "^2.22.0",

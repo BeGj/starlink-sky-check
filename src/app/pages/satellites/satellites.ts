@@ -2,6 +2,7 @@ import { Location } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { SheetPanel } from '../../components/sheet-panel/sheet-panel';
+import { CesiumSky } from '../../satellites/components/cesium-sky';
 import { ObserverView } from '../../satellites/components/observer-view';
 import { TimeControls } from '../../satellites/components/time-controls';
 import { COVERAGE_ALTITUDE_KM, WorldMap } from '../../satellites/components/world-map';
@@ -13,7 +14,7 @@ const OVERHEAD_LIST_LENGTH = 8;
 
 @Component({
   selector: 'app-satellites',
-  imports: [ObserverView, SheetPanel, TimeControls, WorldMap],
+  imports: [CesiumSky, ObserverView, SheetPanel, TimeControls, WorldMap],
   providers: [SatellitesStore],
   templateUrl: './satellites.html',
   styleUrl: './satellites.scss',
@@ -24,6 +25,10 @@ export class Satellites {
   protected readonly views = SAT_VIEWS;
   protected readonly shells = SHELLS;
   protected readonly coverageAltitude = COVERAGE_ALTITUDE_KM;
+  /** Spike: `engine=cesium` draws the sky view with CesiumJS instead of MapLibre, for comparison. */
+  protected readonly engine = signal<'maplibre' | 'cesium'>('maplibre');
+  protected readonly cesiumTerrain = signal<'kartverket' | 'ion'>('kartverket');
+  protected readonly cesiumImagery = signal<'aerial' | 'topo'>('aerial');
   protected readonly locating = signal(false);
   protected readonly locateError = signal('');
 
@@ -78,6 +83,9 @@ export class Satellites {
     // Read from the route: during an in-app navigation the browser URL isn't updated yet.
     const query = inject(ActivatedRoute).snapshot.queryParamMap;
     const params = new URLSearchParams(query.keys.flatMap((k) => query.getAll(k).map((v) => [k, v])));
+    if (params.get('engine') === 'cesium') this.engine.set('cesium');
+    if (params.get('terrain') === 'ion') this.cesiumTerrain.set('ion');
+    if (params.get('imagery') === 'topo') this.cesiumImagery.set('topo');
     const view = SAT_VIEWS.find((v) => v.id === params.get('view'));
     if (view) this.store.view.set(view.id);
     const t = Date.parse(params.get('t') ?? '');
@@ -109,6 +117,9 @@ export class Satellites {
       const o = this.store.observer();
       const e = this.store.selectedElement();
       if (this.store.view() !== 'globe') q.set('view', this.store.view());
+      if (this.engine() === 'cesium') q.set('engine', 'cesium');
+      if (this.cesiumTerrain() === 'ion') q.set('terrain', 'ion');
+      if (this.cesiumImagery() === 'topo') q.set('imagery', 'topo');
       if (o) q.set('obs', `${o.lat.toFixed(5)},${o.lon.toFixed(5)},${o.aboveGround}`);
       if (this.store.minElevation() !== 25) q.set('min', String(this.store.minElevation()));
       if (e) q.set('sel', String(e.NORAD_CAT_ID));

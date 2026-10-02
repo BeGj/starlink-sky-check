@@ -2,7 +2,11 @@
 <div class="layout">
   <div class="stage">
     @if (store.view() === 'observer') {
-      <app-observer-view class="view" />
+      @if (engine() === 'cesium') {
+        <app-cesium-sky class="view" [terrain]="cesiumTerrain()" [imagery]="cesiumImagery()" />
+      } @else {
+        <app-observer-view class="view" />
+      }
     } @else {
       <app-world-map class="view" />
     }
