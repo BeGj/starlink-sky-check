@@ -19,36 +19,52 @@ export interface TileRequest {
 
 /**
  * Kartverket's ArcGIS WCS only accepts GetCoverage as version 1.0.0 with format=GeoTIFF.
- * Requests above ~4000 px per side or ~2 km at 1 m fail, so callers keep tiles at 1000 px.
+ * Requests above ~4000 px per side or ~2 km at 1 m fail, so callers keep tiles at or below 1000 px.
  */
-export function wcsUrl(r: TileRequest): string {
-  const { url, coverage } = WCS[r.surface];
-  const px = Math.round((2 * r.halfSize) / r.res);
-  const bbox = [r.e - r.halfSize, r.n - r.halfSize, r.e + r.halfSize, r.n + r.halfSize].join(',');
+function coverageUrl(surface: Surface, crs: string, bbox: readonly number[], width: number, height: number): string {
+  const { url, coverage } = WCS[surface];
   const params = new URLSearchParams({
     service: 'WCS',
     version: '1.0.0',
     request: 'GetCoverage',
     coverage,
-    crs: 'EPSG:25833',
-    bbox,
-    width: String(px),
-    height: String(px),
+    crs,
+    bbox: bbox.join(','),
+    width: String(width),
+    height: String(height),
     format: 'GeoTIFF',
   });
   return `${url}?${params}`;
 }
 
-export async function fetchTile(r: TileRequest, onBytes?: (loaded: number) => void, signal?: AbortSignal): Promise<Tile> {
-  const res = await fetch(wcsUrl(r), { signal });
+export function wcsUrl(r: TileRequest): string {
+  const px = Math.round((2 * r.halfSize) / r.res);
+  const bbox = [r.e - r.halfSize, r.n - r.halfSize, r.e + r.halfSize, r.n + r.halfSize];
+  return coverageUrl(r.surface, 'EPSG:25833', bbox, px, px);
+}
+
+/** Fetches a coverage and decodes its single float32 band. */
+async function fetchRaster(url: string, signal?: AbortSignal, onBytes?: (loaded: number) => void) {
+  const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Elevation service returned HTTP ${res.status}`);
   const type = res.headers.get('content-type') ?? '';
   if (!type.includes('tiff')) throw new Error('Elevation service did not return terrain data for this area');
   const buffer = await readWithProgress(res, onBytes);
   const image = await (await fromArrayBuffer(buffer)).getImage();
   const [data] = (await image.readRasters()) as unknown as Float32Array[];
+  return { image, data: Float32Array.from(data) };
+}
+
+export async function fetchTile(r: TileRequest, onBytes?: (loaded: number) => void, signal?: AbortSignal): Promise<Tile> {
+  const { image, data } = await fetchRaster(wcsUrl(r), signal, onBytes);
   const [originX, originY] = image.getOrigin();
-  return { data: Float32Array.from(data), width: image.getWidth(), height: image.getHeight(), originX, originY, res: r.res };
+  return { data, width: image.getWidth(), height: image.getHeight(), originX, originY, res: r.res };
+}
+
+/** Heights (m) for an XYZ web-mercator tile, row-major from the north-west corner; the WCS reprojects server-side. */
+export async function fetchMercatorDem(surface: Surface, bounds3857: readonly number[], size: number, signal?: AbortSignal): Promise<Float32Array> {
+  const { data } = await fetchRaster(coverageUrl(surface, 'EPSG:3857', bounds3857, size, size), signal);
+  return data;
 }
 
 async function readWithProgress(res: Response, onBytes?: (loaded: number) => void): Promise<ArrayBuffer> {

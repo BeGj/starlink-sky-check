@@ -14,6 +14,20 @@
   font-size: 0.8rem;
 }
 fieldset { display: flex; flex-wrap: wrap; gap: 2px; margin: 0; padding: 0; border: 0; }
+.row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.toggle-3d {
+  font: inherit;
+  font-weight: 700;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.toggle-3d:hover { background: var(--hover); }
+.toggle-3d.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.note-3d { margin: 6px 4px 0; max-width: 26rem; color: var(--muted); line-height: 1.35; }
 fieldset label {
   position: relative;
   padding: 0.3rem 0.6rem;
@@ -35,6 +49,8 @@ fieldset label:has(input:focus-visible) { outline: 2px solid var(--accent); outl
 .sw.ring-blocked { height: 5px; background: #dc2626; }
 .sw.ring-outside { height: 5px; background: #94a3b8; }
 
+.zoom-hint { color: var(--accent-text); font-weight: 600; }
+
 @media (max-width: 767px) {
-  .legend { display: none; }
+  .legend, .note-3d:not(.zoom-hint) { display: none; }
 }

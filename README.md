@@ -22,6 +22,20 @@ A static web app that estimates how much of a Starlink dish's field of view woul
 
 Spots, settings, the selected spot and the overlay style are stored in the URL, so **Copy link** shares the exact view.
 
+## 3D view
+
+The **3D** button in the map's top-left corner tilts the map and turns on terrain. Right-drag (or a two-finger drag on a phone) tilts and turns it. The overlays and markers sit on the terrain.
+
+- **Terrain source:** the same Kartverket laser data. Kartverket's WCS reprojects 256 px tiles to web mercator on the server. A custom `kvdem://` MapLibre protocol (`src/app/core/dem-protocol.ts`) re-encodes them as Terrarium PNGs in the browser.
+- **Detail:** MapLibre builds its 3D mesh from elevation tiles one zoom level below the view, with 128 mesh cells per 256 px tile, so each mesh cell spans 2 elevation pixels.
+  - **Standard** uses tiles up to z15: about a 4.8 m mesh (2.4 m hillshade) at 60°N. Trees show as soft bumps.
+  - **HQ** (button next to 3D) uses tiles up to z17: about a 1.2 m mesh, close to the 1 m resolution of the laser data. Individual trees and building outlines show. Tiles up to z15 are shared between the two levels.
+- **Antenna:** each spot gets a mast with a dish on top, at the altitude the analysis used (ground + antenna height above ground). With trees and buildings on, the surface under the spot may be a roof, so the visible mast can be shorter than the height above ground. The dish is drawn a bit larger than a real one so it's visible.
+- **Surface:** follows the selected spot's tree setting. Trees on uses the surface model with trees and buildings; trees off uses bare ground.
+- **Hillshade:** computed from the same data and drawn over the topo map, so tree canopies and roofs show up as relief.
+- **Data cost:** about 0.25 MB per elevation tile. A typical close-up view loads 20–30 tiles at standard detail. In HQ, a street-level view in Bergen loaded 33 tiles (about 9 MB), and panning loads more. The terrain and hillshade layers share each download, and at most 6 requests are sent to Kartverket at once.
+- **Shareable link:** the 3D state is saved in the URL as `3d=1`, or `3d=hq` for high detail.
+
 ## Limitations
 
 - **Trees** are as they were when the area was laser-scanned.

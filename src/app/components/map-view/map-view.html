@@ -1,6 +1,29 @@
 <div #map class="map" role="application" aria-label="Map. Click to place an antenna."></div>
-@if (store.spots().length) {
-  <div class="overlay-panel">
+<div class="overlay-panel">
+  <div class="row">
+    <button
+      type="button"
+      class="toggle-3d"
+      [class.active]="store.view3d()"
+      [attr.aria-pressed]="store.view3d()"
+      (click)="store.view3d.set(!store.view3d())"
+    >
+      3D
+    </button>
+    @if (store.view3d()) {
+      <button
+        type="button"
+        class="toggle-3d"
+        [class.active]="store.view3dHigh()"
+        [attr.aria-pressed]="store.view3dHigh()"
+        aria-label="High-detail 3D terrain"
+        title="High-detail 3D terrain (about 1 m)"
+        (click)="store.view3dHigh.set(!store.view3dHigh())"
+      >
+        HQ
+      </button>
+    }
+    @if (store.spots().length) {
     <fieldset>
       <legend class="visually-hidden">Map overlay style</legend>
       @for (m of modes; track m.id) {
@@ -10,6 +33,21 @@
         </label>
       }
     </fieldset>
+    }
+  </div>
+  @if (store.view3d() && zoom() < 11) {
+    <p class="note-3d zoom-hint" role="status">Zoom in closer to see the terrain in 3D.</p>
+  }
+  @if (store.view3d()) {
+    <p class="note-3d">3D terrain from Kartverket laser data ({{ store.selected()?.trees === false ? 'bare ground' : 'with trees & buildings' }}). Right-drag or two-finger drag to tilt and turn. Downloads extra elevation data (~0.25 MB per tile).
+      @if (store.view3dHigh()) {
+        <strong>High detail:</strong> about 1 m terrain when zoomed in to street level, but many more tiles (around 9 MB for a close-up view, more as you pan).
+      } @else {
+        Turn on <strong>HQ</strong> for about 1 m terrain detail.
+      }
+    </p>
+  }
+  @if (store.spots().length) {
     <ul class="legend">
       @switch (store.overlayMode()) {
         @case ('fan-ring') {
@@ -32,5 +70,5 @@
         }
       }
     </ul>
-  </div>
-}
+  }
+</div>

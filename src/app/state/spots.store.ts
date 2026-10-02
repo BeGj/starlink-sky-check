@@ -37,6 +37,10 @@ export class SpotsStore {
   /** True while the next map click should drop a new spot. */
   readonly placing = signal(false);
   readonly overlayMode = signal<OverlayMode>('fan-ring');
+  /** Tilted map with 3D terrain from Kartverket's elevation data. */
+  readonly view3d = signal(false);
+  /** High-detail 3D terrain (~1 m); downloads many more elevation tiles. */
+  readonly view3dHigh = signal(false);
   /** Requested map camera move (address search, restore). */
   readonly flyTo = signal<{ lat: number; lon: number; zoom: number } | null>(null);
   readonly selected = computed(() => this.spots().find((s) => s.id === this.selectedId()) ?? null);
@@ -65,6 +69,9 @@ export class SpotsStore {
     for (const s of restored) this.add(s, false);
     const mode = OVERLAY_MODES.find((m) => m.id === params.get('v'));
     if (mode) this.overlayMode.set(mode.id);
+    const mode3d = params.get('3d');
+    this.view3d.set(mode3d === '1' || mode3d === 'hq');
+    this.view3dHigh.set(mode3d === 'hq');
     const sel = Number(params.get('sel'));
     const spots = this.spots();
     if (spots.length) this.selectedId.set(spots[Number.isInteger(sel) && spots[sel] ? sel : 0].id);
@@ -77,6 +84,7 @@ export class SpotsStore {
       if (spots.length) q.set('s', encodeSpots(spots));
       if (idx > 0) q.set('sel', String(idx));
       if (this.overlayMode() !== 'fan-ring') q.set('v', this.overlayMode());
+      if (this.view3d()) q.set('3d', this.view3dHigh() ? 'hq' : '1');
       const search = q.toString();
       history.replaceState(null, '', search ? `?${search}` : location.pathname);
     });
