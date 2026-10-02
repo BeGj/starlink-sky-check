@@ -2,6 +2,8 @@
 
 A static web app that estimates how much of a Starlink dish's field of view would be blocked by hills, trees and buildings at any spot in Norway. It uses Kartverket's national laser elevation data. There is no backend: everything runs in the browser.
 
+**Try it: [starlink.schjem.net](https://starlink.schjem.net)**
+
 ## How it works
 
 1. **Place a spot.** Search an address or click the map, then set the antenna height above ground.
