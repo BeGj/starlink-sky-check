@@ -9,6 +9,7 @@
 .view-switch button { font: inherit; font-size: 0.85rem; border: 0; background: none; color: var(--text); padding: 0.35rem 0.7rem; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .view-switch button:hover { background: var(--hover); }
 .view-switch button.on { background: var(--accent); color: #fff; font-weight: 600; }
+.loading-3d { position: absolute; inset: 0; margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: #0f172a; color: #fff; }
 .placing { position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); margin: 0; background: var(--surface); padding: 0.45rem 0.7rem; border-radius: 8px; font-size: 0.85rem; box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); z-index: 2; }
 
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
@@ -41,6 +42,10 @@ input[type='number'] { font: inherit; width: 4.5rem; padding: 0.35rem 0.5rem; bo
 .row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .row h2 { margin: 0; }
 .selected { border: 1px solid #fecaca; background: #fef2f2; padding: 0.6rem 0.7rem; border-radius: 8px; }
+.choices { display: grid; gap: 0.4rem; }
+.choices label { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start; font-size: 0.85rem; line-height: 1.35; cursor: pointer; }
+.choices input { margin-top: 0.2rem; accent-color: var(--accent); }
+.choices input:disabled + span { color: var(--muted); }
 .legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; font-size: 0.85rem; }
 .legend li { display: flex; align-items: center; gap: 0.45rem; }
 .sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }

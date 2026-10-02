@@ -55,7 +55,14 @@ The **3D** button in the map's top-left corner tilts the map and turns on terrai
 - **World map:** dots at the point on Earth beneath each satellite, coloured by orbital shell (43°, 53°, 70°, 97.6°), on OpenFreeMap tiles, as a globe or a flat map. Selecting a satellite shows its ground track for half an orbit either way.
 - **Observer:** pick a spot on the map, use your location, or use the selected sky-check spot (the sky check also links here). The panel counts satellites above the horizon and above the lowest satellite elevation, and the map shows the circle within which a satellite at 500 km is that high.
 - **Sky view:** a first-person MapLibre camera at the observer (`calculateCameraOptionsFromCameraLngLatAltRotation`, pitch up to 180°) with Kartverket terrain (trees and buildings) in Norway. Drag, the arrow keys or the mouse wheel look around and zoom. Satellites are drawn by a custom WebGL layer on a sphere 30 km around the observer, in their exact direction, so terrain closer than that hides them. Their true positions would land in the wrong part of the sky, because Web Mercator stretches distances differently for each satellite at these latitudes.
-- **Shareable links:** `view`, `obs` (lat, lon, height above ground), `min` (lowest elevation), `sel` (NORAD number) and, while paused, `t` (time).
+- **3D sky:** the same first-person view drawn with [CesiumJS](https://cesium.com/platform/cesiumjs/), which is built for ground-level 3D.
+  - Terrain detail follows the camera, and satellites sit at their real positions, so terrain at any distance hides them.
+  - The sky, sun and stars follow the chosen time.
+  - Two data sources, switchable in the panel:
+    - **Kartverket:** laser terrain with trees and buildings plus the topo map, through a `CustomHeightmapTerrainProvider` fed by Kartverket's WCS; AWS Terrain Tiles outside Norway. The default, because it shows what blocks a dish.
+    - **Cesium ion:** Cesium World Terrain and Bing aerial photos. Realistic, but with no trees or buildings.
+  - Cesium (about 0.9 MB compressed) is only downloaded when the 3D sky is opened (`@defer`).
+- **Shareable links:** `view` (`2d`, `observer`, `sky3d`), `obs` (lat, lon, height above ground), `min` (lowest elevation), `sel` (NORAD number), `sky=ion` and, while paused, `t` (time).
 
 ## Limitations
 
@@ -81,6 +88,9 @@ All are CORS-enabled and need no key:
 | Basemap | `https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png` |
 | Starlink orbits (OMM JSON) | `https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json` |
 | World map (vector tiles) | `https://tiles.openfreemap.org/styles/positron` |
+| 3D sky: Kartverket terrain | Kartverket WCS (above), sampled per Cesium tile |
+| 3D sky: terrain outside Norway | `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` (AWS Terrain Tiles) |
+| 3D sky: Cesium ion (optional) | Cesium World Terrain (asset 1), Bing Maps Aerial (asset 2) |
 
 Data © Kartverket, CC BY 4.0. Orbit data from CelesTrak. World map from OpenFreeMap, © OpenStreetMap contributors.
 
@@ -103,6 +113,8 @@ The code is laid out as follows:
 - `src/app/components/` holds the sky-check UI and the shared side panel / bottom sheet.
 
 MapLibre 6 loads its web worker as a separate module, so `angular.json` copies `maplibre-gl-worker.mjs` and `maplibre-gl-shared.mjs` to `/maplibre/`, and `core/map-setup.ts` points `setWorkerUrl` at them.
+
+CesiumJS loads its workers, assets and widget styles at runtime: `angular.json` copies `node_modules/cesium/Build/Cesium/{Workers,Assets,ThirdParty,Widgets}` to `/cesium/`, and `satellites/cesium/cesium-setup.ts` sets `CESIUM_BASE_URL` and adds the stylesheet on demand. The Cesium ion token lives in `satellites/cesium/cesium-config.ts`. It's public by design (browsers send it), so it is restricted to the site's domains in the ion dashboard. It's checked once per page load, and if ion rejects it, the 3D sky offers Kartverket only.
 
 satellite.js 7 also ships an optional WASM build whose loader imports Node modules; it's never used here, so `angular.json` lists `node:module` and `node:worker_threads` as external dependencies to keep them out of the bundle. The orbit worker has its own `tsconfig.worker.json`.
 

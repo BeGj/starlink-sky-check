@@ -2,10 +2,15 @@
 <div class="layout">
   <div class="stage">
     @if (store.view() === 'observer') {
-      @if (engine() === 'cesium') {
-        <app-cesium-sky class="view" [terrain]="cesiumTerrain()" [imagery]="cesiumImagery()" />
-      } @else {
-        <app-observer-view class="view" />
+      <app-observer-view class="view" />
+    } @else if (store.view() === 'sky3d') {
+      <!-- Cesium (~600 kB compressed) is only downloaded when the 3D sky is opened. -->
+      @defer {
+        <app-cesium-sky class="view" [source]="skySource()" />
+      } @loading (minimum 300ms) {
+        <p class="loading-3d" role="status"><span class="spinner" aria-hidden="true"></span>Loading the 3D sky…</p>
+      } @error {
+        <p class="loading-3d" role="alert">The 3D sky couldn't be loaded. Check your connection and try again.</p>
       }
     } @else {
       <app-world-map class="view" />
@@ -15,7 +20,7 @@
         <button type="button" [class.on]="store.view() === v.id" [attr.aria-pressed]="store.view() === v.id" (click)="setView(v.id)">{{ v.label }}</button>
       }
     </div>
-    @if (store.placingObserver() && store.view() !== 'observer') {
+    @if (store.placingObserver() && !store.groundView()) {
       <p class="placing" role="status">Click on the map to set the observer.</p>
     }
   </div>
@@ -66,7 +71,7 @@
         <p class="meta">Pick where you are to see which satellites are overhead, and to look at the sky from there.</p>
       }
       <div class="actions">
-        @if (store.view() !== 'observer') {
+        @if (!store.groundView()) {
           <button type="button" class="secondary" [attr.aria-pressed]="store.placingObserver()" (click)="store.placingObserver.set(!store.placingObserver())">
             {{ store.placingObserver() ? 'Cancel' : 'Pick on map' }}
           </button>
@@ -130,13 +135,13 @@
           <dt>Orbit data from</dt>
           <dd>{{ s.epoch }}</dd>
         </dl>
-        @if (store.view() !== 'observer') {
+        @if (!store.groundView()) {
           <p class="meta">The red line shows where it passes over the ground during the half orbit before and after now.</p>
         }
       </section>
     }
 
-    @if (store.view() !== 'observer') {
+    @if (!store.groundView()) {
       <section aria-labelledby="legend-heading">
         <h2 id="legend-heading">Orbital shells</h2>
         <ul class="legend">
@@ -148,6 +153,27 @@
         @if (store.observer()) {
           <p class="meta">Larger dots with an outline are at least {{ store.minElevation() }}° above the observer's horizon.</p>
         }
+      </section>
+    } @else if (store.view() === 'sky3d') {
+      <section aria-labelledby="sky-source-heading" class="sky-source">
+        <h2 id="sky-source-heading">Terrain and imagery</h2>
+        <div role="radiogroup" aria-labelledby="sky-source-heading" class="choices">
+          <label>
+            <input type="radio" name="sky-source" value="kartverket" [checked]="skySource() === 'kartverket'" (change)="store.skySource.set('kartverket')" />
+            <span><strong>Kartverket</strong> — laser terrain with trees and buildings, topo map. Best for what blocks a dish (Norway only).</span>
+          </label>
+          <label>
+            <input type="radio" name="sky-source" value="ion" [checked]="skySource() === 'ion'" [disabled]="!ionOk()" (change)="store.skySource.set('ion')" />
+            <span><strong>Cesium ion</strong> — smooth world terrain and aerial photos. Looks realistic, but has no trees or buildings.</span>
+          </label>
+        </div>
+        @if (ionOk() === false) {
+          <p class="meta">Cesium ion isn't available right now, so the 3D sky uses Kartverket.</p>
+        }
+        <p class="meta">
+          Satellites are drawn at their real positions, and the sky and sunlight follow the chosen time. The green line marks
+          {{ store.minElevation() }}° above the horizon; Starlink uses the sky above it. Terrain hides satellites behind it.
+        </p>
       </section>
     } @else {
       <p class="meta">
@@ -165,6 +191,8 @@
         World map: <a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a>,
         © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.
         Sky view terrain and map © <a href="https://www.kartverket.no/" target="_blank" rel="noopener">Kartverket</a>.
+        3D sky: <a href="https://cesium.com/platform/cesiumjs/" target="_blank" rel="noopener">CesiumJS</a>, with Cesium ion
+        (World Terrain, Bing aerial photos) when chosen, and AWS Terrain Tiles outside Norway.
       </p>
     </footer>
   </app-sheet-panel>

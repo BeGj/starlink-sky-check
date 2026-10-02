@@ -4,19 +4,22 @@ import {
   Cartesian2,
   Cartesian3,
   Cartographic,
+  CesiumTerrainProvider,
   Color,
   Credit,
-  CesiumTerrainProvider,
   ImageryLayer,
   Ion,
   JulianDate,
+  Material,
   Math as CesiumMath,
+  Matrix4,
   PerspectiveFrustum,
   PointPrimitiveCollection,
+  PolylineCollection,
   Rectangle,
-  ScreenSpaceEventHandler,
-  ScreenSpaceEventType,
+  SceneTransforms,
   TileMapServiceImageryProvider,
+  Transforms,
   UrlTemplateImageryProvider,
   Viewer,
   WebMercatorTilingScheme,
@@ -26,13 +29,18 @@ import {
 import { BASEMAP, DEM_BOUNDS } from '../../core/map-setup';
 import { ObserverSpot, SatellitesStore } from '../satellites.store';
 import { SHELLS, shellOf } from '../shells';
-import { CESIUM_ION_TOKEN, ionAvailable } from '../cesium/cesium-config';
+import { CESIUM_ION_TOKEN } from '../cesium/cesium-config';
 import { createTerrainProvider } from '../cesium/terrain';
+
+/** Where the 3D sky view gets its terrain and imagery. */
+export type SkySource = 'kartverket' | 'ion';
 
 /** Eye height above the terrain surface (m). */
 const EYE_HEIGHT = 1.7;
 /** The eye is kept above the highest surface within this distance (m), like the sky check's "ignore objects closer than". */
 const CLEAR_RADIUS = 10;
+/** The minimum-elevation ring is drawn this far from the observer (m); terrain in front of it hides it. */
+const RING_RADIUS = 30_000;
 const PITCH = { min: -20, max: 88 };
 const FOV = { min: 20, max: 100, initial: 70 };
 
@@ -48,11 +56,13 @@ const FOV = { min: 20, max: 100, initial: 70 };
       [attr.aria-label]="ariaLabel()"
       (keydown)="onKeydown($event)"
     ></div>
+    <div #label class="sat-label" aria-hidden="true"></div>
     <div class="hud" aria-hidden="true">
-      <span>Looking {{ compass() }} · {{ lookElevation() }}° up · Cesium (spike{{ ionMode() === false ? ', without ion' : '' }})</span>
+      <span>Looking {{ compass() }} · {{ lookElevation() }}° up</span>
+      <span class="legend"><span class="sw usable"></span>Above {{ store.minElevation() }}° <span class="sw low"></span>Lower</span>
     </div>
     @if (!store.observer()) {
-      <p class="overlay-msg">Choose an observer in the panel to look at the sky from there.</p>
+      <p class="overlay-msg">Choose an observer in the panel (or on the world map) to look at the sky from there.</p>
     }
   `,
   styles: `
@@ -61,8 +71,16 @@ const FOV = { min: 20, max: 100, initial: 70 };
     .cesium:active { cursor: grabbing; }
     .cesium:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
     .hud {
-      position: absolute; top: 10px; left: 10px; background: rgb(255 255 255 / 0.9); color: var(--text);
+      position: absolute; top: 10px; left: 10px; display: grid; gap: 0.2rem; background: rgb(255 255 255 / 0.9); color: var(--text);
       padding: 0.35rem 0.6rem; border-radius: 8px; font-size: 0.8rem; pointer-events: none;
+    }
+    .legend { display: flex; align-items: center; gap: 0.3rem; color: var(--muted); }
+    .sw { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 1px solid #0f172a; }
+    .sw.usable { background: #fff; }
+    .sw.low { background: #94a3b8; border-color: transparent; margin-left: 0.4rem; }
+    .sat-label {
+      position: absolute; display: none; transform: translate(10px, -50%); pointer-events: none;
+      background: #fff; color: #991b1b; font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 4px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
     }
     .overlay-msg {
       position: absolute; top: 40%; left: 50%; transform: translateX(-50%); margin: 0; background: rgb(255 255 255 / 0.95);
@@ -72,47 +90,40 @@ const FOV = { min: 20, max: 100, initial: 70 };
 })
 export class CesiumSky {
   protected readonly store = inject(SatellitesStore);
-  /** Spike comparison: Kartverket laser terrain (trees and buildings) or Cesium World Terrain (needs the ion token). */
-  readonly terrain = input<'kartverket' | 'ion'>('kartverket');
-  /** Spike comparison: Bing aerial photos (needs the ion token) or Kartverket's topo map over Norway. */
-  readonly imagery = input<'aerial' | 'topo'>('aerial');
+  /** Kartverket: laser terrain with trees and buildings plus the topo map. Cesium ion: World Terrain plus Bing aerial photos. */
+  readonly source = input<SkySource>('kartverket');
+
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
+  private readonly labelEl = viewChild.required<ElementRef<HTMLElement>>('label');
   private viewer?: Viewer;
   private points?: PointPrimitiveCollection;
+  private ring?: PolylineCollection;
+  /** Bumped on each source change, so a slow ion request can't override a later choice. */
+  private sourceVersion = 0;
 
   /** Heading (deg from north) and pitch (deg above the horizon) of the view. */
   protected readonly heading = signal(0);
   protected readonly pitch = signal(20);
   private fov = FOV.initial;
-  /** Whether Cesium ion (Bing imagery, World Terrain) is in use; null until the token has been checked. */
-  protected readonly ionMode = signal<boolean | null>(null);
+  private eyeHeight = NaN;
 
   protected readonly compass = computed(() => {
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     return dirs[Math.round((((this.heading() % 360) + 360) % 360) / 45) % 8];
   });
   protected readonly lookElevation = computed(() => Math.round(this.pitch()));
-  protected readonly ariaLabel = computed(
-    () => `Sky view looking ${this.compass()}, ${this.lookElevation()}° above the horizon. Drag or use the arrow keys to look around, plus and minus to zoom.`,
-  );
+  protected readonly ariaLabel = computed(() => {
+    const c = this.store.counts();
+    const seen = c?.usable !== null && c?.usable !== undefined ? ` ${c.usable} satellites are above ${this.store.minElevation()}°.` : '';
+    return `3D sky view looking ${this.compass()}, ${this.lookElevation()}° above the horizon.${seen} Drag or use the arrow keys to look around, plus and minus to zoom, and click a satellite to select it.`;
+  });
 
   constructor() {
     const destroyRef = inject(DestroyRef);
-    let destroyed = false;
-    destroyRef.onDestroy(() => (destroyed = true));
     ensureCesiumCss();
-    afterNextRender(async () => {
-      const ion = await ionAvailable();
-      if (destroyed) return;
-      Ion.defaultAccessToken = ion ? CESIUM_ION_TOKEN : '';
-      this.ionMode.set(ion);
-      const aerial = ion && this.imagery() === 'aerial';
+    afterNextRender(() => {
       const viewer = new Viewer(this.host().nativeElement, {
-        // With ion: Bing aerial photos. Without: Cesium's bundled Natural Earth, with Kartverket's topo map on top.
-        baseLayer: aerial
-          ? ImageryLayer.fromWorldImagery({})
-          : ImageryLayer.fromProviderAsync(TileMapServiceImageryProvider.fromUrl(buildModuleUrl('Assets/Textures/NaturalEarthII'))),
-        terrainProvider: ion && this.terrain() === 'ion' ? undefined : createTerrainProvider(),
+        baseLayer: false,
         baseLayerPicker: false,
         geocoder: false,
         homeButton: false,
@@ -126,24 +137,7 @@ export class CesiumSky {
         shouldAnimate: false,
       });
       this.viewer = viewer;
-      // The clock effect may have run before the viewer existed; start at the sim time.
       viewer.clock.currentTime = JulianDate.fromDate(new Date(this.store.simTime()));
-      if (ion && this.terrain() === 'ion') {
-        void CesiumTerrainProvider.fromIonAssetId(1).then((provider) => {
-          if (!viewer.isDestroyed()) viewer.terrainProvider = provider;
-        });
-      }
-      if (!aerial) {
-        viewer.imageryLayers.addImageryProvider(
-          new UrlTemplateImageryProvider({
-            url: BASEMAP,
-            tilingScheme: new WebMercatorTilingScheme(),
-            maximumLevel: 18,
-            rectangle: Rectangle.fromDegrees(...DEM_BOUNDS),
-            credit: new Credit('© Kartverket'),
-          }),
-        );
-      }
       const scene = viewer.scene;
       scene.globe.depthTestAgainstTerrain = true;
       scene.globe.enableLighting = true;
@@ -152,26 +146,73 @@ export class CesiumSky {
       ctrl.enableRotate = ctrl.enableTranslate = ctrl.enableZoom = ctrl.enableTilt = ctrl.enableLook = false;
       (viewer.camera.frustum as PerspectiveFrustum).fov = CesiumMath.toRadians(this.fov);
 
+      this.ring = scene.primitives.add(new PolylineCollection());
       this.points = scene.primitives.add(new PointPrimitiveCollection());
       // Finer terrain keeps arriving after the camera is placed; re-seat it once loading settles.
       scene.globe.tileLoadProgressEvent.addEventListener((pending: number) => {
         if (pending === 0) this.placeCamera();
       });
+      scene.postRender.addEventListener(() => this.moveLabel());
       this.attachPointer(viewer);
+      this.applySource(this.source());
       this.placeCamera();
       this.renderSatellites();
       destroyRef.onDestroy(() => viewer.destroy());
     });
 
     effect(() => {
+      const source = this.source();
+      untracked(() => this.applySource(source));
+    });
+    effect(() => {
       this.store.observer();
       untracked(() => this.placeCamera());
     });
     effect(() => this.renderSatellites());
     effect(() => {
+      this.store.minElevation();
+      this.store.observer();
+      untracked(() => this.renderRing());
+    });
+    effect(() => {
       const t = this.store.simTime();
       if (this.viewer) this.viewer.clock.currentTime = JulianDate.fromDate(new Date(t));
     });
+  }
+
+  /** Swaps terrain and imagery without recreating the viewer. */
+  private applySource(source: SkySource): void {
+    const viewer = this.viewer;
+    if (!viewer) return;
+    const version = ++this.sourceVersion;
+    const layers = viewer.imageryLayers;
+    layers.removeAll();
+    if (source === 'ion' && CESIUM_ION_TOKEN) {
+      Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+      layers.add(ImageryLayer.fromWorldImagery({}));
+      void CesiumTerrainProvider.fromIonAssetId(1).then((provider) => {
+        if (!viewer.isDestroyed() && version === this.sourceVersion) {
+          viewer.terrainProvider = provider;
+          this.placeCamera();
+        }
+      });
+    } else {
+      // Cesium's bundled Natural Earth worldwide, Kartverket's topo map over Norway.
+      layers.add(ImageryLayer.fromProviderAsync(TileMapServiceImageryProvider.fromUrl(buildModuleUrl('Assets/Textures/NaturalEarthII'))));
+      layers.addImageryProvider(
+        new UrlTemplateImageryProvider({
+          url: BASEMAP,
+          tilingScheme: new WebMercatorTilingScheme(),
+          maximumLevel: 18,
+          rectangle: Rectangle.fromDegrees(...DEM_BOUNDS),
+          credit: new Credit('© Kartverket'),
+        }),
+      );
+      viewer.terrainProvider = createTerrainProvider();
+    }
+    // The surface under the observer depends on the terrain; find it again.
+    this.eyeHeight = NaN;
+    this.placeCamera();
   }
 
   /** Highest loaded terrain (m) within CLEAR_RADIUS of the observer, or null before terrain loads. */
@@ -181,7 +222,7 @@ export class CesiumSky {
     const metresPerDegLat = 111_320;
     const metresPerDegLon = metresPerDegLat * Math.cos((obs.lat * Math.PI) / 180);
     let max = -Infinity;
-    for (const r of [0, 2.5, 5, 7.5, CLEAR_RADIUS]) {
+    for (const r of [0, 0.25, 0.5, 0.75, 1].map((f) => f * CLEAR_RADIUS)) {
       const steps = r === 0 ? 1 : 16;
       for (let k = 0; k < steps; k++) {
         const b = (k / steps) * 2 * Math.PI;
@@ -202,6 +243,28 @@ export class CesiumSky {
       destination: Cartesian3.fromDegrees(obs.lon, obs.lat, height),
       orientation: { heading: CesiumMath.toRadians(this.heading()), pitch: CesiumMath.toRadians(this.pitch()), roll: 0 },
     });
+    if (Math.abs(height - this.eyeHeight) > 0.5 || Number.isNaN(this.eyeHeight)) {
+      this.eyeHeight = height;
+      this.renderRing();
+    }
+  }
+
+  /** A ring at the minimum elevation around the observer: Starlink uses the sky above it. */
+  private renderRing(): void {
+    const ring = this.ring;
+    const obs = this.store.observer();
+    if (!ring) return;
+    ring.removeAll();
+    if (!obs || Number.isNaN(this.eyeHeight)) return;
+    const frame = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(obs.lon, obs.lat, this.eyeHeight));
+    const el = CesiumMath.toRadians(this.store.minElevation());
+    const positions: Cartesian3[] = [];
+    for (let k = 0; k <= 180; k++) {
+      const az = (k / 180) * 2 * Math.PI;
+      const local = new Cartesian3(Math.sin(az) * Math.cos(el) * RING_RADIUS, Math.cos(az) * Math.cos(el) * RING_RADIUS, Math.sin(el) * RING_RADIUS);
+      positions.push(Matrix4.multiplyByPoint(frame, local, new Cartesian3()));
+    }
+    ring.add({ positions, width: 2, material: Material.fromType('Color', { color: Color.fromCssColorString('#16a34a') }) });
   }
 
   private renderSatellites(): void {
@@ -217,8 +280,9 @@ export class CesiumSky {
       points.removeAll();
       for (let i = 0; i < n; i++) points.add({ id: i, pixelSize: 5, color: Color.WHITE });
     }
-    const shellColors = SHELLS.map((s) => Color.fromCssColorString(s.color));
-    const other = Color.fromCssColorString('#64748b');
+    const shellColors = SHELLS.map((s) => Color.fromCssColorString(s.color).withAlpha(0.6));
+    const other = Color.fromCssColorString('#64748b').withAlpha(0.6);
+    const outline = Color.fromCssColorString('#0f172a');
     for (let i = 0; i < n; i++) {
       const point = points.get(i);
       const lon = p.geo[i * 3];
@@ -232,12 +296,34 @@ export class CesiumSky {
       if (i === sel) {
         point.color = Color.RED;
         point.pixelSize = 11;
+        point.outlineWidth = 2;
+        point.outlineColor = Color.WHITE;
       } else {
         const shell = elements[i] ? shellOf(elements[i]) : -1;
-        point.color = usable ? Color.WHITE : (shellColors[shell] ?? other).withAlpha(0.6);
+        point.color = usable ? Color.WHITE : (shellColors[shell] ?? other);
         point.pixelSize = usable ? 7 : 4;
+        point.outlineWidth = usable ? 1 : 0;
+        point.outlineColor = outline;
       }
     }
+  }
+
+  /** Keeps the selected satellite's name next to its dot. */
+  private moveLabel(): void {
+    const label = this.labelEl().nativeElement;
+    const sel = this.store.selected();
+    const e = this.store.selectedElement();
+    const viewer = this.viewer;
+    const point = sel !== null && this.points && sel < this.points.length ? this.points.get(sel) : null;
+    const screen = point?.show && viewer ? SceneTransforms.worldToWindowCoordinates(viewer.scene, point.position) : undefined;
+    if (!e || !screen) {
+      label.style.display = 'none';
+      return;
+    }
+    label.textContent = e.OBJECT_NAME;
+    label.style.display = 'block';
+    label.style.left = `${screen.x}px`;
+    label.style.top = `${screen.y}px`;
   }
 
   private look(dHeading: number, dPitch: number): void {
@@ -275,7 +361,10 @@ export class CesiumSky {
       this.look(-dx * degPerPx, dy * degPerPx);
     });
     const end = (e: PointerEvent) => {
-      if (drag?.id === e.pointerId) drag = null;
+      if (drag?.id !== e.pointerId) return;
+      const wasClick = !drag.moved && e.type === 'pointerup';
+      drag = null;
+      if (wasClick) this.pick(viewer, e);
     };
     target.addEventListener('pointerup', end);
     target.addEventListener('pointercancel', end);
@@ -283,14 +372,17 @@ export class CesiumSky {
       e.preventDefault();
       this.zoomBy(e.deltaY > 0 ? 1.1 : 1 / 1.1);
     }, { passive: false });
+  }
 
-    // Clicks select the satellite under the pointer.
-    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
-    handler.setInputAction((click: { position: Cartesian2 }) => {
-      const picked = viewer.scene.pick(click.position);
-      const id = defined(picked) ? (picked as { id?: unknown }).id : undefined;
-      this.store.select(typeof id === 'number' ? id : null);
-    }, ScreenSpaceEventType.LEFT_CLICK);
+  /**
+   * Selects the satellite under a click. Done here rather than with Cesium's ScreenSpaceEventHandler, because
+   * the drag code captures the pointer and the canvas then never sees the release.
+   */
+  private pick(viewer: Viewer, e: PointerEvent): void {
+    const rect = viewer.scene.canvas.getBoundingClientRect();
+    const picked = viewer.scene.pick(new Cartesian2(e.clientX - rect.left, e.clientY - rect.top), 9, 9);
+    const id = defined(picked) ? (picked as { id?: unknown }).id : undefined;
+    this.store.select(typeof id === 'number' ? id : null);
   }
 
   protected onKeydown(e: KeyboardEvent): void {

@@ -6,11 +6,12 @@ import { CelestrakSource, OrbitSource } from './data/orbit-source';
 import { Observer, orbitalPeriodMs, Positions } from './orbit-math';
 import type { WorkerRequest, WorkerResponse } from './orbit-messages';
 
-export type SatView = 'globe' | '2d' | 'observer';
+export type SatView = 'globe' | '2d' | 'observer' | 'sky3d';
 export const SAT_VIEWS: readonly { id: SatView; label: string }[] = [
   { id: 'globe', label: '3D globe' },
   { id: '2d', label: '2D map' },
   { id: 'observer', label: 'Sky view' },
+  { id: 'sky3d', label: '3D sky' },
 ];
 export const SPEEDS = [1, 10, 60, 600] as const;
 
@@ -60,6 +61,10 @@ export class SatellitesStore {
   readonly positions = signal<Positions | null>(null);
   readonly positionsTime = signal(0);
   readonly view = signal<SatView>('globe');
+  /** The views that look at the sky from the observer, rather than at the Earth from above. */
+  readonly groundView = computed(() => this.view() === 'observer' || this.view() === 'sky3d');
+  /** Terrain and imagery for the 3D sky view; Cesium ion only takes effect when its token works. */
+  readonly skySource = signal<'kartverket' | 'ion'>('kartverket');
   readonly observer = signal<ObserverSpot | null>(null);
   /** True while the next click on the world map should set the observer. */
   readonly placingObserver = signal(false);
@@ -169,7 +174,7 @@ export class SatellitesStore {
 
   clearObserver(): void {
     this.observer.set(null);
-    if (this.view() === 'observer') this.view.set('globe');
+    if (this.groundView()) this.view.set('globe');
     this.requestNow();
   }
 
