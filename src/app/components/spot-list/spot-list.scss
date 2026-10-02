@@ -1,0 +1,28 @@
+:host { display: block; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+h2 { font-size: 1rem; margin: 0; }
+.actions { display: flex; gap: 0.4rem; }
+.hint { margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--accent-text); }
+ul { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 4px; }
+li { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+li.selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.pick {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pick:hover { background: var(--hover); }
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.meta { color: var(--muted); font-size: 0.85rem; }
+.result { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 3.5rem; text-align: right; }
+.remove { border: 0; background: none; color: var(--muted); font-size: 1.2rem; padding: 0 0.7rem; cursor: pointer; }
+.remove:hover { color: var(--danger); background: var(--hover); }

@@ -1,0 +1,36 @@
+<div #map class="map" role="application" aria-label="Map. Click to place an antenna."></div>
+@if (store.spots().length) {
+  <div class="overlay-panel">
+    <fieldset>
+      <legend class="visually-hidden">Map overlay style</legend>
+      @for (m of modes; track m.id) {
+        <label [class.active]="store.overlayMode() === m.id">
+          <input type="radio" name="overlay-mode" [value]="m.id" [checked]="store.overlayMode() === m.id" (change)="store.overlayMode.set(m.id)" />
+          {{ m.label }}
+        </label>
+      }
+    </fieldset>
+    <ul class="legend">
+      @switch (store.overlayMode()) {
+        @case ('fan-ring') {
+          <li><span class="sw fan"></span>Blocked sightlines (out to the obstacle)</li>
+          <li><span class="sw ring-clear"></span><span class="sw ring-blocked"></span>Ring: clear / blocked direction</li>
+        }
+        @case ('area') {
+          <li><span class="sw area"></span>Horizon: where the terrain or trees meet the sky</li>
+          <li><span class="sw fan"></span>Blocked sightlines</li>
+        }
+        @case ('ring') {
+          <li><span class="sw ring-clear"></span>Clear direction</li>
+          <li><span class="sw ring-blocked"></span>Blocked direction</li>
+          <li><span class="sw ring-outside"></span>Outside the dish's view</li>
+        }
+        @case ('all') {
+          <li><span class="sw fan"></span>Blocked sightlines</li>
+          <li><span class="sw line"></span>Full horizon line</li>
+          <li><span class="sw ring-clear"></span><span class="sw ring-blocked"></span>Ring: clear / blocked</li>
+        }
+      }
+    </ul>
+  </div>
+}

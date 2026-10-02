@@ -1,0 +1,148 @@
+@if (spot(); as s) {
+  <section aria-labelledby="spot-heading">
+    <div class="title">
+      <span class="dot" [style.background]="s.color" aria-hidden="true"></span>
+      <h2 id="spot-heading" class="visually-hidden">Settings for {{ s.name }}</h2>
+      <label class="visually-hidden" for="spot-name">Spot name</label>
+      <input id="spot-name" class="name" [value]="s.name" (change)="rename($event)" />
+    </div>
+
+    @if (outsideNorway()) {
+      <p class="warn" role="alert">This point looks like it is outside Norway. Kartverket elevation data only covers Norway.</p>
+    }
+
+    <div class="grid">
+      <label for="height">Antenna height above ground</label>
+      <div class="with-unit">
+        <input id="height" type="number" min="0" max="100" step="0.5" [value]="s.height" (change)="setNum('height', $event, 0, 100)" />
+        <span>m</span>
+      </div>
+
+      <label for="kit">Starlink kit</label>
+      <select id="kit" (change)="set({ kitId: $any($event.target).value })">
+        @for (k of kits; track k.id) {
+          <option [value]="k.id" [selected]="k.id === s.kitId">{{ k.name }} ({{ k.fov }}°)</option>
+        }
+        <option [value]="customKitId" [selected]="s.kitId === customKitId">Custom field of view</option>
+      </select>
+
+      @if (s.kitId === customKitId) {
+        <label for="fov">Field of view</label>
+        <div class="with-unit">
+          <input id="fov" type="number" min="10" max="180" step="5" [value]="s.fov" (change)="setNum('fov', $event, 10, 180)" />
+          <span>°</span>
+        </div>
+      }
+
+      <label for="azimuth">Dish faces</label>
+      <div class="slider">
+        <input id="azimuth" type="range" min="0" max="359" step="1" [value]="s.azimuth" (input)="setNum('azimuth', $event, 0, 359)" />
+        <output for="azimuth">{{ s.azimuth }}° {{ compass(s.azimuth) }}</output>
+      </div>
+
+      <label for="tilt">Tilt from vertical</label>
+      <div class="slider">
+        <input id="tilt" type="range" min="0" max="60" step="1" [value]="s.tilt" (input)="setNum('tilt', $event, 0, 60)" />
+        <output for="tilt">{{ s.tilt }}°</output>
+      </div>
+
+      <span id="trees-label">Include trees &amp; buildings</span>
+      <label class="switch">
+        <input type="checkbox" role="switch" aria-labelledby="trees-label" [checked]="s.trees" (change)="set({ trees: $any($event.target).checked })" />
+        <span>{{ s.trees ? 'Yes (surface model)' : 'No (bare terrain)' }}</span>
+      </label>
+
+      <label for="skip">Ignore objects closer than</label>
+      <div class="with-unit">
+        <input id="skip" type="number" min="0" max="50" step="1" [value]="s.skipRadius" (change)="setNum('skipRadius', $event, 0, 50)" aria-describedby="skip-help" />
+        <span>m</span>
+      </div>
+    </div>
+    <p id="skip-help" class="note">
+      Objects this close to the antenna are ignored so the building it's mounted on doesn't count as an obstruction.
+      Lower it if there are trees right next to the house — they would otherwise be missed.
+    </p>
+    @if (kit(); as k) {
+      <p class="note">{{ k.note }}</p>
+    }
+    <p class="note">In Norway the dish usually faces roughly north. The Starlink app tells you the exact direction and tilt after setup.</p>
+
+    <div class="result" aria-live="polite">
+      @let v = view();
+      @if (v?.analysis?.status === 'loading') {
+        <p class="status"><span class="spinner" aria-hidden="true"></span>{{ v!.analysis!.message }}</p>
+      } @else if (v?.analysis?.status === 'error') {
+        <p class="warn" role="alert">{{ v!.analysis!.message }}</p>
+        <button type="button" class="primary" (click)="store.analyse(s.id)">Try again</button>
+      } @else if (!v?.analysis || v?.stale) {
+        <button type="button" class="primary" (click)="store.analyse(s.id)">{{ v?.stale ? 'Re-analyse at new position' : 'Analyse sky view' }}</button>
+        <p class="note">Downloads about 8 MB of elevation data from Kartverket (12 MB if the dish could see mountains more than 10 km away).</p>
+      } @else if (v?.cone && v?.analysis?.horizon) {
+        @if (v!.analysis!.groundZ! <= 0.5) {
+          <p class="warn" role="alert">
+            The ground height here is about 0 m. This may be sea or an area without elevation data, so the result is unreliable.
+          </p>
+        }
+        <div class="headline">
+          <span class="pct">{{ percent()!.toFixed(1) }}%</span>
+          <span>of the dish's field of view is obstructed</span>
+        </div>
+        <div class="bar" role="presentation"><span [style.width.%]="percent()"></span></div>
+        <app-sky-plot
+          [horizon]="v!.analysis!.horizon!.angles"
+          [floor]="v!.cone!.floor"
+          [label]="'Sky plot: ' + percent()!.toFixed(1) + '% of the field of view is blocked'"
+        />
+        <ul class="legend">
+          <li><span class="sw terrain"></span>Terrain{{ s.trees ? ' & trees' : '' }}</li>
+          <li><span class="sw cone"></span>Dish field of view</li>
+          <li><span class="sw blocked"></span>Blocked</li>
+        </ul>
+        <dl class="facts">
+          <dt>Ground height</dt>
+          <dd>{{ v!.analysis!.groundZ!.toFixed(1) }} m a.s.l.</dd>
+          <dt>Antenna height</dt>
+          <dd>{{ v!.analysis!.antennaZ!.toFixed(1) }} m a.s.l.</dd>
+        </dl>
+        @if (v!.analysis!.coverage; as c) {
+          <section class="coverage" aria-labelledby="coverage-heading">
+            <h3 id="coverage-heading">What this analysis includes</h3>
+            <ul class="included">
+              @if (c.trees) {
+                <li>Trees and buildings within {{ c.detailRadius }} m of the antenna (1 m laser data)</li>
+              } @else {
+                <li>Bare terrain within {{ c.detailRadius }} m at 1 m detail (trees and buildings switched off)</li>
+              }
+              <li>Hills and mountains out to {{ km(c.terrainRadius) }} ({{ c.coarsestRes }} m grid at the far end)</li>
+              <li>Earth curvature and atmospheric refraction</li>
+              <li>Your own building: objects closer than {{ c.skipRadius }} m are ignored</li>
+            </ul>
+            @if (v!.requiredRadius <= c.terrainRadius) {
+              <p class="reach ok">
+                Complete for this dish aim: even Norway's highest mountain would sit below the dish's view if it were more than
+                {{ km(max(v!.requiredRadius, 0)) }} away.
+              </p>
+            } @else {
+              <p class="reach warn">
+                This dish aim reaches so low towards the horizon that mountains more than {{ km(c.terrainRadius) }} away could in
+                theory block part of it. Terrain that far away is not included.
+              </p>
+            }
+            <h3>Not included</h3>
+            <ul class="excluded">
+              <li>Trees more than {{ c.detailRadius }} m away (only the ground is used there)</li>
+              <li>Growth or felling since the area was laser-scanned</li>
+              <li>Snow, masts, power lines and other things not in the elevation data</li>
+              <li>Where satellites actually are: the % is a share of the dish's view, not of connection time</li>
+            </ul>
+          </section>
+        }
+      }
+    </div>
+  </section>
+} @else {
+  <section class="empty">
+    <h2>Will Starlink see enough sky?</h2>
+    <p>Search for an address or click on the map where the dish will be mounted. The tool uses Kartverket's laser elevation data to check how much of the dish's view is blocked by hills, trees and buildings.</p>
+  </section>
+}
