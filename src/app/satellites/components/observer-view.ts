@@ -1,5 +1,5 @@
 import { afterNextRender, Component, computed, DestroyRef, effect, ElementRef, inject, signal, untracked, viewChild } from '@angular/core';
-import { Map as MlMap, MercatorCoordinate } from 'maplibre-gl';
+import { LngLat, Map as MlMap, MercatorCoordinate } from 'maplibre-gl';
 import { isRoughlyInNorway } from '../../core/geo';
 import { BASEMAP, BASEMAP_ATTRIBUTION, demSource, initMapLibre, SKY } from '../../core/map-setup';
 import { ObserverSpot, SatellitesStore } from '../satellites.store';
@@ -21,6 +21,9 @@ const EYE_HEIGHT = 1.7;
 const CLEAR_RADIUS = 10;
 const CLEAR_SAMPLES = { rings: [0, 0.25, 0.5, 0.75, 1].map((f) => f * CLEAR_RADIUS), bearings: 16 };
 const PITCH = { min: 70, max: 178 };
+/** Distance (m) to the point the camera aims at; sets the map zoom and so the terrain detail near the observer. */
+const AIM_DISTANCE = 100;
+const METRES_PER_DEG_LAT = 111_320;
 const FOV = { min: 20, max: 100, initial: 70 };
 const PICK_RADIUS_PX = 16;
 
@@ -196,14 +199,13 @@ export class ObserverView {
   private highestSurfaceNearby(obs: ObserverSpot): number | null {
     const map = this.map;
     if (!map) return null;
-    const metresPerDegLat = 111_320;
-    const metresPerDegLon = metresPerDegLat * Math.cos((obs.lat * Math.PI) / 180);
+    const metresPerDegLon = METRES_PER_DEG_LAT * Math.cos((obs.lat * Math.PI) / 180);
     let max = -Infinity;
     for (const r of CLEAR_SAMPLES.rings) {
       const steps = r === 0 ? 1 : CLEAR_SAMPLES.bearings;
       for (let k = 0; k < steps; k++) {
         const b = (k / steps) * 2 * Math.PI;
-        const z = map.queryTerrainElevation([obs.lon + (Math.sin(b) * r) / metresPerDegLon, obs.lat + (Math.cos(b) * r) / metresPerDegLat]);
+        const z = map.queryTerrainElevation([obs.lon + (Math.sin(b) * r) / metresPerDegLon, obs.lat + (Math.cos(b) * r) / METRES_PER_DEG_LAT]);
         if (z !== null && z > max) max = z;
       }
     }
@@ -216,7 +218,18 @@ export class ObserverView {
     if (!obs || !map) return;
     const alt = this.eyeAltitude(obs);
     this.cameraAltitude = alt;
-    map.jumpTo(map.calculateCameraOptionsFromCameraLngLatAltRotation([obs.lon, obs.lat], alt, this.bearing(), this.pitch()));
+    // Aim at a point a short way along the view direction. MapLibre picks tile detail from the distance to
+    // the camera's centre point; letting it choose one (calculateCameraOptionsFromCameraLngLatAltRotation)
+    // puts that point kilometres away when looking up, so the terrain around the observer came from coarse
+    // tiles whose ~40 m mesh cells cut through the camera.
+    const el = ((this.pitch() - 90) * Math.PI) / 180;
+    const b = (this.bearing() * Math.PI) / 180;
+    const horizontal = Math.cos(el) * AIM_DISTANCE;
+    const target: [number, number] = [
+      obs.lon + (Math.sin(b) * horizontal) / (METRES_PER_DEG_LAT * Math.cos((obs.lat * Math.PI) / 180)),
+      obs.lat + (Math.cos(b) * horizontal) / METRES_PER_DEG_LAT,
+    ];
+    map.jumpTo(map.calculateCameraOptionsFromTo(new LngLat(obs.lon, obs.lat), alt, LngLat.convert(target), alt + Math.sin(el) * AIM_DISTANCE));
     const f = this.frame;
     if (f && Math.abs(f.z / f.unitsPerMetre - alt) > 0.5) this.updateFrame();
   }
