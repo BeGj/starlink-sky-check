@@ -79,9 +79,23 @@ The code is laid out as follows:
 
 MapLibre 6 loads its web worker as a separate module, so `angular.json` copies `maplibre-gl-worker.mjs` and `maplibre-gl-shared.mjs` to `/maplibre/`, and `map-view.ts` points `setWorkerUrl` at them.
 
-## Deploying to Cloudflare Pages
+## Deployment
 
+The app is hosted on Cloudflare Pages as the project `starlink-sky-check`, connected to this GitHub repository, and served at [starlink.schjem.net](https://starlink.schjem.net).
+
+- **Production:** every push to `main` builds and deploys to `starlink.schjem.net` (also `starlink-sky-check.pages.dev`).
+- **Previews:** pushes to other branches and pull requests get their own preview URL on `*.starlink-sky-check.pages.dev`, posted as a comment on the PR.
 - **Build command:** `npm run build`
 - **Output directory:** `dist/starlink-simulator/browser`
+- **Node version:** the build sets the environment variable `NODE_VERSION=24.15.0`. The `packageManager` field pins npm 12, which needs Node `^22.22.2 || ^24.15.0 || >=26`, and the build image's default Node is too old for it. If you change `packageManager`, update `NODE_VERSION` to match.
+- **Custom domain:** `starlink.schjem.net` is a proxied CNAME to `starlink-sky-check.pages.dev` in the `schjem.net` Cloudflare zone.
+- **Headers:** `public/_headers` sets the security and cache headers.
 
-Either connect the Git repository in the Cloudflare dashboard, or deploy from the command line with `npx wrangler pages deploy dist/starlink-simulator/browser --project-name starlink-sky-check`. `public/_headers` sets the cache headers.
+The project can be inspected with the `cf` CLI (set `CLOUDFLARE_ACCOUNT_ID` to the account that owns `schjem.net`):
+
+```bash
+cf pages deployments list --project-name starlink-sky-check
+cf pages domains get starlink.schjem.net --project-name starlink-sky-check
+```
+
+To deploy a local build by hand instead of pushing: `npx wrangler pages deploy dist/starlink-simulator/browser --project-name starlink-sky-check`.
