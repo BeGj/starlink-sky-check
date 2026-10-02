@@ -166,9 +166,16 @@
             <input type="radio" name="sky-source" value="ion" [checked]="skySource() === 'ion'" [disabled]="!ionOk()" (change)="store.skySource.set('ion')" />
             <span><strong>Cesium ion</strong> — smooth world terrain and aerial photos. Looks realistic, but has no trees or buildings.</span>
           </label>
+          <label>
+            <input type="radio" name="sky-source" value="google" [checked]="skySource() === 'google'" [disabled]="!ionOk()" (change)="store.skySource.set('google')" />
+            <span><strong>Google 3D</strong> — photorealistic 3D mesh with buildings and trees. Most detailed in towns; heaviest to load.</span>
+          </label>
         </div>
         @if (ionOk() === false) {
           <p class="meta">Cesium ion isn't available right now, so the 3D sky uses Kartverket.</p>
+        }
+        @if (skySource() === 'google') {
+          <p class="meta">Google's mesh is photographed from the air, so trees and buildings are as they were then, and small or thin things can be missing.</p>
         }
         <p class="meta">
           Satellites are drawn at their real positions, and the sky and sunlight follow the chosen time. The green line marks
@@ -192,7 +199,7 @@
         © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.
         Sky view terrain and map © <a href="https://www.kartverket.no/" target="_blank" rel="noopener">Kartverket</a>.
         3D sky: <a href="https://cesium.com/platform/cesiumjs/" target="_blank" rel="noopener">CesiumJS</a>, with Cesium ion
-        (World Terrain, Bing aerial photos) when chosen, and AWS Terrain Tiles outside Norway.
+        (World Terrain, Bing aerial photos, Google Photorealistic 3D Tiles) when chosen, and AWS Terrain Tiles outside Norway.
       </p>
     </footer>
   </app-sheet-panel>

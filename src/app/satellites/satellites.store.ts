@@ -63,8 +63,8 @@ export class SatellitesStore {
   readonly view = signal<SatView>('globe');
   /** The views that look at the sky from the observer, rather than at the Earth from above. */
   readonly groundView = computed(() => this.view() === 'observer' || this.view() === 'sky3d');
-  /** Terrain and imagery for the 3D sky view; Cesium ion only takes effect when its token works. */
-  readonly skySource = signal<'kartverket' | 'ion'>('kartverket');
+  /** Terrain and imagery for the 3D sky view; the ion-based sources (ion, google) only take effect when the token works. */
+  readonly skySource = signal<'kartverket' | 'ion' | 'google'>('kartverket');
   readonly observer = signal<ObserverSpot | null>(null);
   /** True while the next click on the world map should set the observer. */
   readonly placingObserver = signal(false);

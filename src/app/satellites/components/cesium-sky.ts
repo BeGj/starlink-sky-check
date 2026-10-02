@@ -4,6 +4,7 @@ import {
   Cartesian2,
   Cartesian3,
   Cartographic,
+  Cesium3DTileset,
   CesiumTerrainProvider,
   Color,
   Credit,
@@ -23,7 +24,9 @@ import {
   UrlTemplateImageryProvider,
   Viewer,
   WebMercatorTilingScheme,
+  EllipsoidTerrainProvider,
   buildModuleUrl,
+  createGooglePhotorealistic3DTileset,
   defined,
 } from 'cesium';
 import { BASEMAP, DEM_BOUNDS } from '../../core/map-setup';
@@ -33,7 +36,7 @@ import { CESIUM_ION_TOKEN } from '../cesium/cesium-config';
 import { createTerrainProvider } from '../cesium/terrain';
 
 /** Where the 3D sky view gets its terrain and imagery. */
-export type SkySource = 'kartverket' | 'ion';
+export type SkySource = 'kartverket' | 'ion' | 'google';
 
 /** Eye height above the terrain surface (m). */
 const EYE_HEIGHT = 1.7;
@@ -61,6 +64,9 @@ const FOV = { min: 20, max: 100, initial: 70 };
       <span>Looking {{ compass() }} · {{ lookElevation() }}° up</span>
       <span class="legend"><span class="sw usable"></span>Above {{ store.minElevation() }}° <span class="sw low"></span>Lower</span>
     </div>
+    @if (notice()) {
+      <p class="notice" role="status">{{ notice() }}</p>
+    }
     @if (!store.observer()) {
       <p class="overlay-msg">Choose an observer in the panel (or on the world map) to look at the sky from there.</p>
     }
@@ -82,6 +88,10 @@ const FOV = { min: 20, max: 100, initial: 70 };
       position: absolute; display: none; transform: translate(10px, -50%); pointer-events: none;
       background: #fff; color: #991b1b; font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 4px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
     }
+    .notice {
+      position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); margin: 0; background: #fffbeb; color: #78350f;
+      padding: 0.45rem 0.7rem; border-radius: 8px; font-size: 0.8rem; max-width: min(90%, 420px); text-align: center;
+    }
     .overlay-msg {
       position: absolute; top: 40%; left: 50%; transform: translateX(-50%); margin: 0; background: rgb(255 255 255 / 0.95);
       padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; max-width: min(90%, 420px); text-align: center;
@@ -90,7 +100,10 @@ const FOV = { min: 20, max: 100, initial: 70 };
 })
 export class CesiumSky {
   protected readonly store = inject(SatellitesStore);
-  /** Kartverket: laser terrain with trees and buildings plus the topo map. Cesium ion: World Terrain plus Bing aerial photos. */
+  /**
+   * Kartverket: laser terrain with trees and buildings plus the topo map. Cesium ion: World Terrain plus Bing aerial
+   * photos. Google: Google Photorealistic 3D Tiles through Cesium ion, a photo-textured mesh of terrain, buildings and trees.
+   */
   readonly source = input<SkySource>('kartverket');
 
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
@@ -98,6 +111,8 @@ export class CesiumSky {
   private viewer?: Viewer;
   private points?: PointPrimitiveCollection;
   private ring?: PolylineCollection;
+  /** Google's photorealistic mesh while that source is chosen; it replaces the globe. */
+  private tileset?: Cesium3DTileset;
   /** Bumped on each source change, so a slow ion request can't override a later choice. */
   private sourceVersion = 0;
 
@@ -106,6 +121,8 @@ export class CesiumSky {
   protected readonly pitch = signal(20);
   private fov = FOV.initial;
   private eyeHeight = NaN;
+  /** Shown over the view when a data source fell back to another. */
+  protected readonly notice = signal('');
 
   protected readonly compass = computed(() => {
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -150,7 +167,7 @@ export class CesiumSky {
       this.points = scene.primitives.add(new PointPrimitiveCollection());
       // Finer terrain keeps arriving after the camera is placed; re-seat it once loading settles.
       scene.globe.tileLoadProgressEvent.addEventListener((pending: number) => {
-        if (pending === 0) this.placeCamera();
+        if (pending === 0) this.placeCamera(true);
       });
       scene.postRender.addEventListener(() => this.moveLabel());
       this.attachPointer(viewer);
@@ -185,13 +202,40 @@ export class CesiumSky {
     const viewer = this.viewer;
     if (!viewer) return;
     const version = ++this.sourceVersion;
+    if (source !== 'ion') this.notice.set('');
+    const scene = viewer.scene;
     const layers = viewer.imageryLayers;
     layers.removeAll();
-    if (source === 'ion' && CESIUM_ION_TOKEN) {
+    if (this.tileset) {
+      scene.primitives.remove(this.tileset);
+      this.tileset = undefined;
+    }
+    scene.globe.show = true;
+    const current = () => !viewer.isDestroyed() && version === this.sourceVersion;
+    if (source === 'google' && CESIUM_ION_TOKEN) {
+      Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+      // Google's mesh includes the ground, so the globe would only show through it.
+      scene.globe.show = false;
+      viewer.terrainProvider = new EllipsoidTerrainProvider();
+      // Google allows these tiles only alongside Google's own geocoder; this page has no address search at all.
+      void createGooglePhotorealistic3DTileset({ onlyUsingWithGoogleGeocoder: true }, { showCreditsOnScreen: true }).then(
+        (tileset) => {
+          if (!current()) return;
+          this.tileset = scene.primitives.add(tileset);
+          // Re-seat the camera on the mesh as its detailed tiles arrive (only when that changes the height).
+          tileset.allTilesLoaded.addEventListener(() => this.placeCamera(true));
+        },
+        () => {
+          if (!current()) return;
+          this.notice.set("Google's 3D tiles couldn't be loaded, so this shows Cesium ion terrain instead.");
+          this.applySource('ion');
+        },
+      );
+    } else if (source === 'ion' && CESIUM_ION_TOKEN) {
       Ion.defaultAccessToken = CESIUM_ION_TOKEN;
       layers.add(ImageryLayer.fromWorldImagery({}));
       void CesiumTerrainProvider.fromIonAssetId(1).then((provider) => {
-        if (!viewer.isDestroyed() && version === this.sourceVersion) {
+        if (current()) {
           viewer.terrainProvider = provider;
           this.placeCamera();
         }
@@ -215,10 +259,15 @@ export class CesiumSky {
     this.placeCamera();
   }
 
-  /** Highest loaded terrain (m) within CLEAR_RADIUS of the observer, or null before terrain loads. */
+  /** Highest loaded surface (m) within CLEAR_RADIUS of the observer, or null before it loads. */
   private surfaceNear(obs: ObserverSpot): number | null {
-    const globe = this.viewer?.scene.globe;
-    if (!globe) return null;
+    const scene = this.viewer?.scene;
+    if (!scene) return null;
+    const tileset = this.tileset;
+    // With Google's mesh there is no globe; sample the mesh itself (ignoring our own points and ring).
+    const heightAt = tileset
+      ? (c: Cartographic) => (scene.sampleHeightSupported ? scene.sampleHeight(c, [this.points, this.ring].filter(Boolean) as object[]) : undefined)
+      : (c: Cartographic) => scene.globe.getHeight(c);
     const metresPerDegLat = 111_320;
     const metresPerDegLon = metresPerDegLat * Math.cos((obs.lat * Math.PI) / 180);
     let max = -Infinity;
@@ -226,19 +275,21 @@ export class CesiumSky {
       const steps = r === 0 ? 1 : 16;
       for (let k = 0; k < steps; k++) {
         const b = (k / steps) * 2 * Math.PI;
-        const h = globe.getHeight(Cartographic.fromDegrees(obs.lon + (Math.sin(b) * r) / metresPerDegLon, obs.lat + (Math.cos(b) * r) / metresPerDegLat));
+        const h = heightAt(Cartographic.fromDegrees(obs.lon + (Math.sin(b) * r) / metresPerDegLon, obs.lat + (Math.cos(b) * r) / metresPerDegLat));
         if (h !== undefined && h > max) max = h;
       }
     }
     return Number.isFinite(max) ? max : null;
   }
 
-  private placeCamera(): void {
+  /** Puts the camera at the observer's eye; with `onlyIfMoved`, leaves it alone unless the eye height changed. */
+  private placeCamera(onlyIfMoved = false): void {
     const obs = this.store.observer();
     const viewer = this.viewer;
     if (!obs || !viewer) return;
     const surface = this.surfaceNear(obs);
     const height = Math.max(obs.height, (surface ?? obs.ground ?? 0) + EYE_HEIGHT);
+    if (onlyIfMoved && Math.abs(height - this.eyeHeight) < 0.3) return;
     viewer.camera.setView({
       destination: Cartesian3.fromDegrees(obs.lon, obs.lat, height),
       orientation: { heading: CesiumMath.toRadians(this.heading()), pitch: CesiumMath.toRadians(this.pitch()), roll: 0 },

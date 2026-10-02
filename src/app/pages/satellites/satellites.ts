@@ -28,8 +28,8 @@ export class Satellites {
   protected readonly coverageAltitude = COVERAGE_ALTITUDE_KM;
   /** Whether the Cesium ion token works; null while checking. Ion is only offered when it does. */
   protected readonly ionOk = signal<boolean | null>(null);
-  /** The 3D sky's data source as used: Cesium ion only when chosen and available. */
-  protected readonly skySource = computed(() => (this.store.skySource() === 'ion' && this.ionOk() ? 'ion' : 'kartverket'));
+  /** The 3D sky's data source as used: the ion-based ones only when chosen and the token works. */
+  protected readonly skySource = computed(() => (this.store.skySource() !== 'kartverket' && this.ionOk() ? this.store.skySource() : 'kartverket'));
   protected readonly locating = signal(false);
   protected readonly locateError = signal('');
 
@@ -84,7 +84,8 @@ export class Satellites {
     // Read from the route: during an in-app navigation the browser URL isn't updated yet.
     const query = inject(ActivatedRoute).snapshot.queryParamMap;
     const params = new URLSearchParams(query.keys.flatMap((k) => query.getAll(k).map((v) => [k, v])));
-    if (params.get('sky') === 'ion') this.store.skySource.set('ion');
+    const sky = params.get('sky');
+    if (sky === 'ion' || sky === 'google') this.store.skySource.set(sky);
     void ionAvailable().then((ok) => this.ionOk.set(ok));
     const view = SAT_VIEWS.find((v) => v.id === params.get('view'));
     if (view) this.store.view.set(view.id);
@@ -117,7 +118,7 @@ export class Satellites {
       const o = this.store.observer();
       const e = this.store.selectedElement();
       if (this.store.view() !== 'globe') q.set('view', this.store.view());
-      if (this.store.skySource() === 'ion') q.set('sky', 'ion');
+      if (this.store.skySource() !== 'kartverket') q.set('sky', this.store.skySource());
       if (o) q.set('obs', `${o.lat.toFixed(5)},${o.lon.toFixed(5)},${o.aboveGround}`);
       if (this.store.minElevation() !== 25) q.set('min', String(this.store.minElevation()));
       if (e) q.set('sel', String(e.NORAD_CAT_ID));

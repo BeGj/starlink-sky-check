@@ -58,11 +58,12 @@ The **3D** button in the map's top-left corner tilts the map and turns on terrai
 - **3D sky:** the same first-person view drawn with [CesiumJS](https://cesium.com/platform/cesiumjs/), which is built for ground-level 3D.
   - Terrain detail follows the camera, and satellites sit at their real positions, so terrain at any distance hides them.
   - The sky, sun and stars follow the chosen time.
-  - Two data sources, switchable in the panel:
+  - Three data sources, switchable in the panel:
     - **Kartverket:** laser terrain with trees and buildings plus the topo map, through a `CustomHeightmapTerrainProvider` fed by Kartverket's WCS; AWS Terrain Tiles outside Norway. The default, because it shows what blocks a dish.
     - **Cesium ion:** Cesium World Terrain and Bing aerial photos. Realistic, but with no trees or buildings.
+    - **Google 3D:** Google Photorealistic 3D Tiles through Cesium ion, a photo-textured mesh with buildings and trees. It's the most realistic view of what blocks a dish, most detailed in towns, and the heaviest to load. Google's terms allow these tiles only together with Google's geocoder, so the satellites page has no other address search. If the tiles can't load, the view falls back to Cesium ion.
   - Cesium (about 0.9 MB compressed) is only downloaded when the 3D sky is opened (`@defer`).
-- **Shareable links:** `view` (`2d`, `observer`, `sky3d`), `obs` (lat, lon, height above ground), `min` (lowest elevation), `sel` (NORAD number), `sky=ion` and, while paused, `t` (time).
+- **Shareable links:** `view` (`2d`, `observer`, `sky3d`), `obs` (lat, lon, height above ground), `min` (lowest elevation), `sel` (NORAD number), `sky` (`ion` or `google`) and, while paused, `t` (time).
 
 ## Limitations
 
@@ -90,7 +91,7 @@ All are CORS-enabled and need no key:
 | World map (vector tiles) | `https://tiles.openfreemap.org/styles/positron` |
 | 3D sky: Kartverket terrain | Kartverket WCS (above), sampled per Cesium tile |
 | 3D sky: terrain outside Norway | `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` (AWS Terrain Tiles) |
-| 3D sky: Cesium ion (optional) | Cesium World Terrain (asset 1), Bing Maps Aerial (asset 2) |
+| 3D sky: Cesium ion (optional) | Cesium World Terrain (asset 1), Bing Maps Aerial (asset 2), Google Photorealistic 3D Tiles |
 
 Data © Kartverket, CC BY 4.0. Orbit data from CelesTrak. World map from OpenFreeMap, © OpenStreetMap contributors.
 
