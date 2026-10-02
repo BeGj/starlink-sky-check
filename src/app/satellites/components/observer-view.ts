@@ -242,6 +242,7 @@ export class ObserverView {
   }
 
   private look(dBearing: number, dPitch: number): void {
+    if (!Number.isFinite(dBearing) || !Number.isFinite(dPitch)) return;
     this.bearing.update((b) => (((b + dBearing) % 360) + 360) % 360);
     this.pitch.update((p) => Math.min(PITCH.max, Math.max(PITCH.min, p + dPitch)));
     this.applyCamera();
@@ -268,8 +269,11 @@ export class ObserverView {
       drag.moved = true;
       drag.x = e.clientX;
       drag.y = e.clientY;
-      // Grab-the-sky panning: the scene follows the finger.
-      const degPerPx = this.fov / target.clientHeight;
+      // Grab-the-sky panning: the scene follows the finger. MapLibre's canvas container has no height of its
+      // own (the canvas is positioned absolutely), so measure the map element.
+      const height = this.el().nativeElement.clientHeight;
+      if (!height) return;
+      const degPerPx = this.fov / height;
       this.look(-dx * degPerPx, dy * degPerPx);
     });
     const end = (e: PointerEvent) => {
