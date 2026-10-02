@@ -4,16 +4,31 @@
 </header>
 <main class="layout">
   <app-map-view class="map" />
-  <aside class="panel" [class.open]="sheetOpen()" aria-label="Spots and results">
+  <aside
+    #panel
+    class="panel"
+    [class.open]="sheetOpen()"
+    [class.sized]="sheetHeight() !== null"
+    [class.dragging]="dragging()"
+    [style.--sheet-height.px]="sheetHeight()"
+    aria-label="Spots and results"
+  >
     <button
       type="button"
       class="handle"
-      (click)="sheetOpen.set(!sheetOpen())"
+      (click)="toggleSheet()"
+      (pointerdown)="onHandlePointerDown($event)"
+      (pointermove)="onHandlePointerMove($event)"
+      (pointerup)="onHandlePointerUp($event)"
+      (pointercancel)="onHandlePointerUp($event)"
+      (keydown)="onHandleKeydown($event)"
       [attr.aria-expanded]="sheetOpen()"
       aria-controls="panel-body"
     >
       <span class="grip" aria-hidden="true"></span>
-      <span class="visually-hidden">{{ sheetOpen() ? 'Collapse panel' : 'Expand panel' }}</span>
+      <span class="visually-hidden">
+        {{ sheetOpen() ? 'Collapse panel' : 'Expand panel' }}. Drag, or use the up and down arrow keys, to resize.
+      </span>
     </button>
     <div id="panel-body" class="panel-body">
       <app-spot-list />

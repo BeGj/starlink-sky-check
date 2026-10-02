@@ -36,6 +36,8 @@ footer a { color: inherit; }
     z-index: 2;
   }
   .panel.open { max-height: 70dvh; }
+  .panel.sized { height: var(--sheet-height); max-height: none; }
+  .panel.dragging { transition: none; }
   .panel-body { padding: 0 16px 16px; }
   .handle {
     display: flex;
@@ -47,7 +49,9 @@ footer a { color: inherit; }
     position: sticky;
     top: 0;
     z-index: 1;
-    cursor: pointer;
+    cursor: grab;
+    touch-action: none;
   }
+  .panel.dragging .handle { cursor: grabbing; }
   .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--border); }
 }
