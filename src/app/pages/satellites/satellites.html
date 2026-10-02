@@ -78,6 +78,19 @@
       @if (locateError()) {
         <p class="warn" role="alert">{{ locateError() }}</p>
       }
+      @if (overhead().length) {
+        <h3 class="sub">Highest in the sky now</h3>
+        <ul class="overhead">
+          @for (o of overhead(); track o.index) {
+            <li>
+              <button type="button" [attr.aria-pressed]="store.selected() === o.index" (click)="store.select(o.index)">
+                <span class="sat-name">{{ o.name }}</span>
+                <span class="sat-pos">{{ o.el.toFixed(0) }}° up, {{ compass(o.az) }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
       <div class="min-el">
         <label for="sat-min-el">Lowest satellite elevation</label>
         <div class="with-unit">

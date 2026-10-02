@@ -8,7 +8,7 @@ const MINUTE = 60_000;
   template: `
     <section class="time" aria-labelledby="time-heading">
       <div class="row">
-        <h3 id="time-heading">Time</h3>
+        <h2 id="time-heading">Time</h2>
         @if (store.live()) {
           <span class="live"><span class="dot" aria-hidden="true"></span>Live</span>
         } @else {
@@ -62,7 +62,7 @@ const MINUTE = 60_000;
   `,
   styles: `
     .time { display: grid; gap: 0.4rem; }
-    h3 { font-size: 0.95rem; margin: 0; }
+    h2 { font-size: 0.95rem; margin: 0; }
     .row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
     .controls { justify-content: flex-start; }
     .live { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; color: #15803d; }

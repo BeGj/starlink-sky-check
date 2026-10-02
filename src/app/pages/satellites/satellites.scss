@@ -29,6 +29,15 @@ input[type='number'] { font: inherit; width: 4.5rem; padding: 0.35rem 0.5rem; bo
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; font-size: 0.85rem; margin: 0; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.sub { font-size: 0.85rem; margin: 0.4rem 0 0; }
+.overhead { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.overhead button {
+  width: 100%; display: flex; justify-content: space-between; gap: 0.5rem; font: inherit; font-size: 0.82rem;
+  background: none; border: 1px solid transparent; border-radius: 6px; padding: 0.25rem 0.4rem; color: var(--text); cursor: pointer; text-align: left;
+}
+.overhead button:hover { background: var(--hover); }
+.overhead button[aria-pressed='true'] { background: #fef2f2; border-color: #fecaca; color: #991b1b; font-weight: 600; }
+.sat-pos { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .row h2 { margin: 0; }
 .selected { border: 1px solid #fecaca; background: #fef2f2; padding: 0.6rem 0.7rem; border-radius: 8px; }

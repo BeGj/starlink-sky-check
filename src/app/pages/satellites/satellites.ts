@@ -9,6 +9,8 @@ import { SAT_VIEWS, SatellitesStore, SatView } from '../../satellites/satellites
 import { SHELLS, shellOf } from '../../satellites/shells';
 import { SpotsStore } from '../../state/spots.store';
 
+const OVERHEAD_LIST_LENGTH = 8;
+
 @Component({
   selector: 'app-satellites',
   imports: [ObserverView, SheetPanel, TimeControls, WorldMap],
@@ -32,6 +34,20 @@ export class Satellites {
     const min = Math.round((this.store.now() - at) / 60_000);
     return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.floor(min / 60)} h ${min % 60} min ago`;
   });
+  /** The highest satellites in the observer's sky: a keyboard and screen-reader way to pick one. */
+  protected readonly overhead = computed(() => {
+    const p = this.store.positions();
+    const elements = this.store.elements();
+    if (!p?.look) return [];
+    const minEl = this.store.minElevation();
+    const out: { index: number; name: string; el: number; az: number }[] = [];
+    for (let i = 0; i < p.look.length / 3; i++) {
+      const el = p.look[i * 3 + 1];
+      if (el >= minEl) out.push({ index: i, name: elements[i]?.OBJECT_NAME ?? `#${i}`, el, az: p.look[i * 3] });
+    }
+    return out.sort((a, b) => b.el - a.el).slice(0, OVERHEAD_LIST_LENGTH);
+  });
+
   /** Details of the selected satellite, including where it is in the observer's sky. */
   protected readonly selectedInfo = computed(() => {
     const i = this.store.selected();
