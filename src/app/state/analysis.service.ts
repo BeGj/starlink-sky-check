@@ -87,7 +87,7 @@ export class AnalysisService {
       if (!Number.isFinite(ground)) throw new Error('No elevation data at this location');
       const antennaZ = ground + spot.height;
 
-      const required = requiredReach({ azimuth: spot.azimuth, tilt: spot.tilt, fov: spot.fov }, antennaZ);
+      const required = requiredReach({ azimuth: spot.azimuth, tilt: spot.tilt, fov: spot.fov, minElevation: spot.minElevation }, antennaZ);
       const tiles = [near, far];
       if (reachToFetch(required) > BASE_REACH) {
         const extended = await this.tile({ surface: 'dtm', e: ce, n: cn, ...EXTENDED }, progress('Downloading mountains up to 50 km away (3/3)'), ctrl.signal);

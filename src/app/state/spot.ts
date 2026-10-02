@@ -1,4 +1,6 @@
 export const DEFAULT_SKIP_RADIUS = 8;
+/** Starlink's long-standing minimum elevation angle; regulators have since allowed lower in some places. */
+export const DEFAULT_MIN_ELEVATION = 25;
 
 export interface SpotSettings {
   lat: number;
@@ -16,6 +18,8 @@ export interface SpotSettings {
   trees: boolean;
   /** Ignore surface cells closer than this (m) so the building the antenna is mounted on doesn't block itself. */
   skipRadius: number;
+  /** Lowest elevation (deg) at which Starlink connects; obstructions below it don't count. */
+  minElevation: number;
 }
 
 export interface Spot extends SpotSettings {

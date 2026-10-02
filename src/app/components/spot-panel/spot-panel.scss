@@ -44,3 +44,9 @@ output { font-variant-numeric: tabular-nums; font-size: 0.9rem; }
 .reach { margin: 0.55rem 0 0; padding: 0.45rem 0.55rem; border-radius: 6px; line-height: 1.4; }
 .reach.ok { background: #f0fdf4; color: #14532d; }
 .reach.warn { background: #fef2f2; color: var(--danger); }
+.weighted { font-size: 0.85rem; margin: 0 0 0.5rem; }
+.rating { font-size: 0.85rem; margin: 0 0 0.75rem; padding: 0.45rem 0.55rem; border-radius: 6px; line-height: 1.4; }
+.rating.good { background: #f0fdf4; color: #14532d; }
+.rating.fair { background: #fffbeb; color: #78350f; }
+.rating.poor { background: #fef2f2; color: var(--danger); }
+.rating-source { display: block; font-size: 0.75rem; margin-top: 0.2rem; }

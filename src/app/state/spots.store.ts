@@ -3,7 +3,7 @@ import { ConeResult, evaluateCone } from '../analysis/cone';
 import { MAX_REACH, requiredReach } from '../analysis/reach';
 import { CUSTOM_KIT_ID, findKit, KITS } from '../core/kits';
 import { Analysis, AnalysisService, horizonKey } from './analysis.service';
-import { DEFAULT_SKIP_RADIUS, OVERLAY_MODES, OverlayMode, Spot, SPOT_COLORS, SpotSettings } from './spot';
+import { DEFAULT_MIN_ELEVATION, DEFAULT_SKIP_RADIUS, OVERLAY_MODES, OverlayMode, Spot, SPOT_COLORS, SpotSettings } from './spot';
 import { decodeSpots, encodeSpots } from './url-state';
 
 export const DEFAULT_SETTINGS: Omit<SpotSettings, 'lat' | 'lon'> = {
@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Omit<SpotSettings, 'lat' | 'lon'> = {
   tilt: KITS[0].defaultTilt,
   trees: true,
   skipRadius: DEFAULT_SKIP_RADIUS,
+  minElevation: DEFAULT_MIN_ELEVATION,
 };
 
 export interface SpotView {
@@ -53,7 +54,7 @@ export class SpotsStore {
     for (const s of this.spots()) {
       const analysis = results.get(s.id) ?? null;
       const stale = !!analysis && analysis.key !== horizonKey(s);
-      const aim = { azimuth: s.azimuth, tilt: s.tilt, fov: s.fov };
+      const aim = { azimuth: s.azimuth, tilt: s.tilt, fov: s.fov, minElevation: s.minElevation };
       const cone = analysis?.horizon ? evaluateCone(analysis.horizon, aim) : null;
       const requiredRadius = analysis?.antennaZ !== undefined ? requiredReach(aim, analysis.antennaZ) : 0;
       const reach = analysis?.coverage?.terrainRadius ?? 0;
@@ -115,6 +116,7 @@ export class SpotsStore {
       tilt: template.tilt,
       trees: template.trees,
       skipRadius: template.skipRadius,
+      minElevation: template.minElevation,
       ...settings,
       id,
       name: `Spot ${id}`,

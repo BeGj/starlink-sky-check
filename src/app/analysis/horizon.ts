@@ -1,6 +1,6 @@
 import { innerRadius, sampleTile, Tile } from './tile';
 
-const EARTH_RADIUS = 6_371_000;
+export const EARTH_RADIUS = 6_371_000;
 /** Standard atmospheric refraction coefficient. */
 const REFRACTION_K = 0.13;
 /** Apparent drop (m) of terrain per squared metre of distance, from Earth curvature less refraction. */

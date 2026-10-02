@@ -1,9 +1,10 @@
 import { CUSTOM_KIT_ID, findKit } from '../core/kits';
-import { DEFAULT_SKIP_RADIUS, SpotSettings } from './spot';
+import { DEFAULT_MIN_ELEVATION, DEFAULT_SKIP_RADIUS, SpotSettings } from './spot';
 
 /**
- * Encodes spots as `lat,lon,height,kit,azimuth,tilt,trees,skipRadius` separated by `;`.
- * Custom kits carry their FOV: `c120`. skipRadius is optional when decoding (older links).
+ * Encodes spots as `lat,lon,height,kit,azimuth,tilt,trees,skipRadius,minElevation` separated by `;`.
+ * Custom kits carry their FOV: `c120`. skipRadius and minElevation are optional when decoding (older links)
+ * and fall back to the current defaults.
  */
 export function encodeSpots(spots: SpotSettings[]): string {
   return spots
@@ -17,6 +18,7 @@ export function encodeSpots(spots: SpotSettings[]): string {
         round(s.tilt),
         s.trees ? 1 : 0,
         round(s.skipRadius),
+        round(s.minElevation),
       ].join(','),
     )
     .join(';');
@@ -26,7 +28,7 @@ export function decodeSpots(value: string | null): SpotSettings[] {
   if (!value) return [];
   const out: SpotSettings[] = [];
   for (const part of value.split(';')) {
-    const [lat, lon, height, kit, azimuth, tilt, trees, skip] = part.split(',');
+    const [lat, lon, height, kit, azimuth, tilt, trees, skip, minEl] = part.split(',');
     const nums = [lat, lon, height, azimuth, tilt].map(Number);
     if (nums.some((v) => !Number.isFinite(v)) || !kit) continue;
     const custom = kit.startsWith('c') ? Number(kit.slice(1)) : NaN;
@@ -41,10 +43,17 @@ export function decodeSpots(value: string | null): SpotSettings[] {
       azimuth: nums[3],
       tilt: nums[4],
       trees: trees !== '0',
-      skipRadius: skip !== undefined && Number.isFinite(Number(skip)) ? Math.max(0, Number(skip)) : DEFAULT_SKIP_RADIUS,
+      skipRadius: optional(skip, 0, Infinity, DEFAULT_SKIP_RADIUS),
+      minElevation: optional(minEl, 0, 90, DEFAULT_MIN_ELEVATION),
     });
   }
   return out;
+}
+
+/** Parses an optional trailing field, clamped to [min, max], or returns the fallback when it's missing or invalid. */
+function optional(value: string | undefined, min: number, max: number, fallback: number): number {
+  const v = value === undefined || value === '' ? NaN : Number(value);
+  return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
 }
 
 function round(v: number): number {

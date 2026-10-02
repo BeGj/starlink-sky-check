@@ -57,10 +57,21 @@
         <input id="skip" type="number" min="0" max="50" step="1" [value]="s.skipRadius" (change)="setNum('skipRadius', $event, 0, 50)" aria-describedby="skip-help" />
         <span>m</span>
       </div>
+
+      <label for="min-el">Lowest satellite elevation</label>
+      <div class="with-unit">
+        <input id="min-el" type="number" min="0" max="45" step="1" [value]="s.minElevation" (change)="setNum('minElevation', $event, 0, 45)" aria-describedby="min-el-help" />
+        <span>°</span>
+      </div>
     </div>
     <p id="skip-help" class="note">
       Objects this close to the antenna are ignored so the building it's mounted on doesn't count as an obstruction.
       Lower it if there are trees right next to the house — they would otherwise be missed.
+    </p>
+    <p id="min-el-help" class="note">
+      Starlink doesn't use satellites below this angle above the horizon, so obstructions lower down don't count.
+      It has long been 25°; regulators have recently allowed lower angles in some places (down to 5° north of 62°N in the US and Canada).
+      Set it to 0 to count the dish's whole field of view.
     </p>
     @if (kit(); as k) {
       <p class="note">{{ k.note }}</p>
@@ -83,15 +94,30 @@
             The ground height here is about 0 m. This may be sea or an area without elevation data, so the result is unreliable.
           </p>
         }
-        <div class="headline">
-          <span class="pct">{{ percent()!.toFixed(1) }}%</span>
-          <span>of the dish's field of view is obstructed</span>
-        </div>
-        <div class="bar" role="presentation"><span [style.width.%]="percent()"></span></div>
+        @if (percent() === null) {
+          <p class="warn" role="alert">
+            No part of the dish's field of view is above the lowest satellite elevation ({{ s.minElevation }}°). Reduce the tilt or the lowest elevation.
+          </p>
+        } @else {
+          <div class="headline">
+            <span class="pct">{{ percent()!.toFixed(1) }}%</span>
+            <span>of the dish's usable field of view is obstructed</span>
+          </div>
+          <div class="bar" role="presentation"><span [style.width.%]="percent()"></span></div>
+          <p class="weighted">
+            <strong>{{ weightedPercent()!.toFixed(1) }}%</strong> when weighted by where satellites appear in the sky (an estimate: low sky holds more satellites).
+          </p>
+          @if (rating(); as r) {
+            <p class="rating" [class]="r.level">
+              <strong>{{ r.label }}.</strong> {{ r.detail }}
+              <span class="rating-source">Rough guide from the weighted figure, based on what Starlink users report; not from Starlink.</span>
+            </p>
+          }
+        }
         <app-sky-plot
           [horizon]="v!.analysis!.horizon!.angles"
           [floor]="v!.cone!.floor"
-          [label]="'Sky plot: ' + percent()!.toFixed(1) + '% of the field of view is blocked'"
+          [label]="percent() === null ? 'Sky plot: no usable field of view' : 'Sky plot: ' + percent()!.toFixed(1) + '% of the usable field of view is blocked'"
         />
         <ul class="legend">
           <li><span class="sw terrain"></span>Terrain{{ s.trees ? ' & trees' : '' }}</li>
@@ -116,6 +142,7 @@
               <li>Hills and mountains out to {{ km(c.terrainRadius) }} ({{ c.coarsestRes }} m grid at the far end)</li>
               <li>Earth curvature and atmospheric refraction</li>
               <li>Your own building: objects closer than {{ c.skipRadius }} m are ignored</li>
+              <li>Only sky at least {{ s.minElevation }}° above the horizon, where Starlink connects to satellites</li>
             </ul>
             @if (v!.requiredRadius <= c.terrainRadius) {
               <p class="reach ok">
@@ -133,7 +160,10 @@
               <li>Trees more than {{ c.detailRadius }} m away (only the ground is used there)</li>
               <li>Growth or felling since the area was laser-scanned</li>
               <li>Snow, masts, power lines and other things not in the elevation data</li>
-              <li>Where satellites actually are: the % is a share of the dish's view, not of connection time</li>
+              <li>
+                Where satellites actually are: the main % is a share of the dish's view, not of connection time. The weighted %
+                assumes satellites are spread evenly around the Earth, which they aren't, especially this far north.
+              </li>
             </ul>
           </section>
         }

@@ -28,7 +28,20 @@ export class SpotPanel {
   });
   protected readonly percent = computed(() => {
     const cone = this.view()?.cone;
-    return cone ? cone.obstructedFraction * 100 : null;
+    return cone && !Number.isNaN(cone.obstructedFraction) ? cone.obstructedFraction * 100 : null;
+  });
+  protected readonly weightedPercent = computed(() => {
+    const cone = this.view()?.cone;
+    return cone && !Number.isNaN(cone.weightedObstructedFraction) ? cone.weightedObstructedFraction * 100 : null;
+  });
+  /** Rough, unofficial rating from the weighted figure, using thresholds commonly reported by Starlink users. */
+  protected readonly rating = computed(() => {
+    const p = this.weightedPercent();
+    if (p === null) return null;
+    if (p < 0.05) return { level: 'good', label: 'No obstructions', detail: 'Should work without interruptions.' };
+    if (p <= 5) return { level: 'good', label: 'Good', detail: 'Most use works fine; expect occasional short dropouts.' };
+    if (p <= 10) return { level: 'fair', label: 'Some problems likely', detail: 'Expect buffering and dropped video calls now and then.' };
+    return { level: 'poor', label: 'Serious problems likely', detail: 'Frequent dropouts; browsing and video calls will suffer.' };
   });
 
   protected set(patch: Partial<SpotSettings>): void {
@@ -41,7 +54,7 @@ export class SpotPanel {
     return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : null;
   }
 
-  protected setNum(key: 'height' | 'azimuth' | 'tilt' | 'fov' | 'skipRadius', event: Event, min: number, max: number): void {
+  protected setNum(key: 'height' | 'azimuth' | 'tilt' | 'fov' | 'skipRadius' | 'minElevation', event: Event, min: number, max: number): void {
     const v = this.num(event, min, max);
     if (v !== null) this.set({ [key]: v });
   }
