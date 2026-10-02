@@ -12,6 +12,14 @@ initMapLibre();
 const DOME_RADIUS = 30_000;
 /** Eye height above the terrain surface (m), so the camera never ends up inside the ground mesh. */
 const EYE_HEIGHT = 1.7;
+/**
+ * The eye is placed above the highest terrain surface within this distance (m). The 3D surface includes trees
+ * and buildings and is coarser than the ground height at the spot, so on a slope or next to a house it rises
+ * above eye level a few metres away and the camera ends up inside it. Like the sky check's "ignore objects
+ * closer than", things this close don't block the view.
+ */
+const CLEAR_RADIUS = 10;
+const CLEAR_SAMPLES = { rings: [0, 0.25, 0.5, 0.75, 1].map((f) => f * CLEAR_RADIUS), bearings: 16 };
 const PITCH = { min: 70, max: 178 };
 const FOV = { min: 20, max: 100, initial: 70 };
 const PICK_RADIUS_PX = 16;
@@ -85,6 +93,8 @@ export class ObserverView {
   protected readonly bearing = signal(0);
   protected readonly pitch = signal(110);
   private fov = FOV.initial;
+  /** Eye altitude (m) the camera was last placed at. */
+  private cameraAltitude = NaN;
 
   protected readonly compass = computed(() => {
     const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -143,8 +153,11 @@ export class ObserverView {
         this.applyCamera();
       });
       // Terrain arrives after the first frames; re-seat the camera so it stands on the loaded surface.
-      map.on('sourcedata', (e) => {
-        if (e.sourceId === 'terrain' && e.isSourceLoaded) this.applyCamera();
+      // Finer terrain tiles keep arriving after the camera is placed and can raise the surface around it;
+      // re-seat the camera whenever loading settles. Once the height is stable this changes nothing.
+      map.on('idle', () => {
+        const obs = this.store.observer();
+        if (obs && Math.abs(this.eyeAltitude(obs) - this.cameraAltitude) > 0.2) this.applyCamera();
       });
       this.layer.onRender = () => this.moveLabel();
       this.attachPointer(map.getCanvasContainer());
@@ -175,8 +188,26 @@ export class ObserverView {
   }
 
   private eyeAltitude(obs: ObserverSpot): number {
-    const surface = this.map?.queryTerrainElevation([obs.lon, obs.lat]) ?? null;
+    const surface = this.highestSurfaceNearby(obs);
     return Math.max(obs.height, (surface ?? obs.ground ?? 0) + EYE_HEIGHT);
+  }
+
+  /** Highest loaded terrain surface (m) within CLEAR_RADIUS of the observer, or null before terrain loads. */
+  private highestSurfaceNearby(obs: ObserverSpot): number | null {
+    const map = this.map;
+    if (!map) return null;
+    const metresPerDegLat = 111_320;
+    const metresPerDegLon = metresPerDegLat * Math.cos((obs.lat * Math.PI) / 180);
+    let max = -Infinity;
+    for (const r of CLEAR_SAMPLES.rings) {
+      const steps = r === 0 ? 1 : CLEAR_SAMPLES.bearings;
+      for (let k = 0; k < steps; k++) {
+        const b = (k / steps) * 2 * Math.PI;
+        const z = map.queryTerrainElevation([obs.lon + (Math.sin(b) * r) / metresPerDegLon, obs.lat + (Math.cos(b) * r) / metresPerDegLat]);
+        if (z !== null && z > max) max = z;
+      }
+    }
+    return Number.isFinite(max) ? max : null;
   }
 
   private applyCamera(): void {
@@ -184,6 +215,7 @@ export class ObserverView {
     const map = this.map;
     if (!obs || !map) return;
     const alt = this.eyeAltitude(obs);
+    this.cameraAltitude = alt;
     map.jumpTo(map.calculateCameraOptionsFromCameraLngLatAltRotation([obs.lon, obs.lat], alt, this.bearing(), this.pitch()));
     const f = this.frame;
     if (f && Math.abs(f.z / f.unitsPerMetre - alt) > 0.5) this.updateFrame();
