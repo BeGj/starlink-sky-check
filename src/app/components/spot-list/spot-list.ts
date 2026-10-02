@@ -37,7 +37,7 @@ import { SpotsStore } from '../../state/spots.store';
               } @else if (view?.analysis?.status === 'error') {
                 error
               } @else if (view?.cone) {
-                {{ (view!.cone!.obstructedFraction * 100).toFixed(1) }}%
+                {{ percent(view!.cone!.obstructedFraction) }}
               }
             </span>
           </button>
@@ -60,5 +60,10 @@ export class SpotList {
       this.copied.set('failed');
     }
     setTimeout(() => this.copied.set(''), 4000);
+  }
+
+  /** Obstructed share as shown in the list; NaN means no part of the cone is above the minimum elevation. */
+  protected percent(fraction: number): string {
+    return Number.isNaN(fraction) ? 'no view' : `${(fraction * 100).toFixed(1)}%`;
   }
 }
